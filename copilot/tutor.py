@@ -379,7 +379,10 @@ class Tutor:
     def public(self, problem):
         shown = {k: v for k, v in problem.items() if k != "label"}
         shown["key"] = key_of(problem)
-        shown["image"] = bool(self.images and _has_image(self.images, key_of(problem)))
+        has_image = bool(self.images and _has_image(self.images, key_of(problem)))
+        # The image is the source of options/figures; when the problem is
+        # text-only and the OCR options are complete, it is redundant.
+        shown["image"] = has_image and (not problem.get("text_only") or not problem.get("options"))
         shown["topic"] = topics.classify(problem.get("text", ""))["topic"]
         return shown
 
@@ -417,8 +420,10 @@ class Tutor:
 
     # -- the hint ladder ------------------------------------------------------
 
-    def _worked_example(self, neighbour, score):
-        lines = [f"A similar problem, already solved (level {neighbour.get('level', '?')}):",
+    def _worked_example(self, neighbour, score, easier=True):
+        title = ("A similar, easier problem, already solved" if easier
+                 else "Another solved problem at this level (there was nothing easier)")
+        lines = [f"{title} (level {neighbour.get('level', '?')}):",
                  neighbour.get("text", "").strip()]
         options = neighbour.get("options") or {}
         for letter in LETTERS:
@@ -471,7 +476,7 @@ class Tutor:
                 return self._method_hint(problem, 1, start, status="fallback",
                                          detail={"reason": "no neighbour to show"})
             score, neighbour = found
-            text, detail = self._worked_example(neighbour, score)
+            text, detail = self._worked_example(neighbour, score, was_easier)
             detail["easier"] = was_easier
             return {"rung": 1, "kind": "easier_problem", "text": text, "status": "ok",
                     "seconds": round(time.perf_counter() - start, 2), "detail": detail}
