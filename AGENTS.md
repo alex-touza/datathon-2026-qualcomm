@@ -106,6 +106,7 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - Diagnosis: rule-based from the distractor vs the label (unit, sign, digit swap, half, double, factor of ten, off by one, copied from the text, one step short). Shows *what to check*, never the answer; never stored as a label of the student.
 - Adaptive next: right → neighbour one level up; wrong → same topic one level down; nearest level in the direction of travel if that level is missing. `data/tutor.db` holds attempts and per-topic counts. No model in the loop.
 - Measure: `python3 tools/tutor_checks.py` (about a second) then `python3 tools/tutor_measure.py --limit 20 --name <name>` on the board; reports latency per rung, raw vs shipped leak rate, four simulated student paths, and dumps ten hints for hand judging. `--fake` is plumbing only; never quote it.
+- Topic labels are stored per attempt. After changing `copilot/topics.py`, run `python3 tools/relabel_profile.py` and restart the tutor server; otherwise old practice history keeps stale labels.
 - Optional cheap `predict.py` rule: if `options` is empty, answer `D` (26.0% on that subset vs 25.1% for the 0.8B). Not applied.
 
 ## Data and retrieval rules
