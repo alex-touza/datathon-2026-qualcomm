@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""Generate and verify three-part tutor solutions with a cloud model.
+
+Build-time only. The board never calls this tool or the network; it reads the
+verified rows from data/explanations.db.
+
+    export DEEPSEEK_API_KEY=...
+    python3 tools/generate_solutions.py --dry-run
+    python3 tools/generate_solutions.py --limit-ids 5 --name pilot-v1
+    python3 tools/generate_solutions.py --limit-ids 200 --name demo-v1
+
+Default selection: 200 problem ids, each in English and Catalan (400 rows),
+stratified by level. Only training problems with readable options are eligible.
+"""
+import argparse
+import csv
+import json
+import math
+import os
+import random
+import sqlite3
+import sys
+import time
+import urllib.error
+import urllib.request
+from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from copilot.solutions import check_parts  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROMPTS = os.path.join(ROOT, "tools", "prompts")
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS solutions (
+    key TEXT PRIMARY KEY,
+    problem_id TEXT,
+    language TEXT,
+    level INTEGER,
+    part1 TEXT,
+    part2 TEXT,
+    part3 TEXT,
+    model TEXT,
+    prompt_version TEXT,
+    verified INTEGER,
+    reject_reason TEXT,
+    created_at REAL
+)"""
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--input", default="data/train.jsonl")
+    p.add_argument("--out", default="data/explanations.db")
+    p.add_argument("--languages", default="eng,cat")
+    p.add_argument("--limit-ids", type=int, default=200, help="unique problems; each is generated in every language")
+    p.add_argument("--all", action="store_true", help="use every eligible id instead of a 200-id sample")
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--name", default="solutions-v1")
+    p.add_argument("--model", default="deepseek-chat")
+    p.add_argument("--base-url", default="https://api.deepseek.com")
+    p.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
+    p.add_argument("--max-tokens", type=int, default=600)
+    p.add_argument("--timeout", type=float, default=120)
+    p.add_argument("--retries", type=int, default=3)
+    p.add_argument("--force", action="store_true", help="regenerate rows that already exist")
+    p.add_argument("--retry-failed", action="store_true", help="retry rows that exist but are unverified")
+    p.add_argument("--stop-on-error", action="store_true")
+    p.add_argument("--dry-run", action="store_true", help="print the prompt and selection; no API call")
+    return p.parse_args()
+
+
+def load_eligible(path, languages):
+    by_id = defaultdict(dict)
+    with open(path) as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            problem = json.loads(line)
+            if problem.get("options"):
+                by_id[problem["id"]][problem["language"]] = problem
+    return {pid: langs for pid, langs in by_id.items()
+            if all(lang in langs for lang in languages)}
+
+
+def select_rows(eligible, languages, limit_ids, seed):
+    if not limit_ids:
+        ids = sorted(eligible)
+    else:
+        by_level = defaultdict(list)
+        for pid, langs in eligible.items():
+            by_level[langs[languages[0]].get("level", 0)].append(pid)
+        rng = random.Random(seed)
+        for ids in by_level.values():
+            rng.shuffle(ids)
+        levels = sorted(by_level)
+        quota = max(1, math.ceil(limit_ids / len(levels)))
+        chosen = []
+        for level in levels:
+            chosen.extend(by_level[level][:quota])
+            if len(chosen) >= limit_ids:
+                break
+        if len(chosen) < limit_ids:
+            rest = [pid for level in levels for pid in by_level[level] if pid not in chosen]
+            rng.shuffle(rest)
+            chosen.extend(rest[:limit_ids - len(chosen)])
+        ids = sorted(set(chosen))[:limit_ids]
+    return [eligible[pid][lang] for pid in ids for lang in languages]
+
+
+def read_prompt():
+    with open(os.path.join(PROMPTS, "solution_system_v1.txt")) as handle:
+        system = handle.read().strip()
+    with open(os.path.join(PROMPTS, "solution_user_v1.txt")) as handle:
+        user = handle.read()
+    return system, user
+
+
+def format_prompt(template, problem):
+    options = "\n".join(f"{letter}) {value}" for letter, value in problem["options"].items())
+    label = problem["label"]
+    return (template.replace("{{PROBLEM}}", problem["text"].strip())
+            .replace("{{OPTIONS}}", options)
+            .replace("{{LABEL}}", label)
+            .replace("{{VALUE}}", problem["options"][label]))
+
+
+def request_json(args, system, prompt):
+    key = os.environ.get(args.api_key_env)
+    if not key:
+        raise SystemExit(f"set {args.api_key_env} first")
+    url = args.base_url.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": args.model,
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user", "content": prompt}],
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": args.max_tokens,
+        "response_format": {"type": "json_object"},
+    }
+    request = urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                     headers={"Content-Type": "application/json",
+                                              "Authorization": f"Bearer {key}"})
+    with urllib.request.urlopen(request, timeout=args.timeout) as response:
+        body = json.loads(response.read())
+    return body
+
+
+def parse_parts(content):
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text.split("\n", 1)[1] if "\n" in text else text
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start, end = text.find("{"), text.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        data = json.loads(text[start:end + 1])
+    return {key: str(data.get(key, "")) for key in ("part1", "part2", "part3")}
+
+
+def main():
+    args = parse_args()
+    languages = [lang.strip() for lang in args.languages.split(",") if lang.strip()]
+    eligible = load_eligible(args.input, languages)
+    rows = select_rows(eligible, languages, 0 if args.all else args.limit_ids, args.seed)
+    print(f"{len(eligible)} eligible ids; selected {len(rows)} rows "
+          f"({len({r['id'] for r in rows})} ids, {languages})", flush=True)
+
+    if args.dry_run:
+        system, template = read_prompt()
+        print("\n=== SYSTEM ===\n" + system)
+        print("\n=== USER ===\n" + format_prompt(template, rows[0]))
+        return
+
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    db = sqlite3.connect(args.out)
+    db.execute(SCHEMA)
+    db.commit()
+    existing = {(key, verified) for key, verified in db.execute("SELECT key, verified FROM solutions")}
+    if args.force:
+        existing = set()
+
+    system, template = read_prompt()
+    review = []
+    known = {key for key, _verified in existing}
+    failed = {key for key, verified in existing if not verified}
+    todo = [p for p in rows if p["id"] + "|" + p["language"] not in known
+            or (args.retry_failed and p["id"] + "|" + p["language"] in failed)]
+    print(f"{len(todo)} rows to generate", flush=True)
+
+    for n, problem in enumerate(todo, 1):
+        prompt = format_prompt(template, problem)
+        key = problem["id"] + "|" + problem["language"]
+        parts, reason = None, ""
+        try:
+            body = request_json(args, system, prompt)
+            parts = parse_parts(body["choices"][0]["message"]["content"])
+            ok, reason = check_parts(problem, parts)
+        except Exception as error:  # noqa: BLE001 - record the failure, keep going
+            ok, reason = False, f"{type(error).__name__}: {error}"
+            parts = parts or {"part1": "", "part2": "", "part3": ""}
+        db.execute(
+            "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (key, problem["id"], problem["language"], problem.get("level"),
+             parts["part1"], parts["part2"], parts["part3"], args.model, args.name,
+             int(ok), "" if ok else reason, time.time()))
+        db.commit()
+        review.append({**problem, "key": key, **parts, "verified": ok, "reason": reason})
+        print(f"[{n}/{len(todo)}] {key}: {'OK' if ok else 'REJECT ' + reason}", flush=True)
+        if not ok and args.stop_on_error:
+            break
+
+    os.makedirs("results", exist_ok=True)
+    review_path = f"results/solutions-review-{args.name}.csv"
+    with open(review_path, "w", newline="", encoding="utf-8") as handle:
+        fields = ["key", "id", "language", "level", "text", "part1", "part2",
+                  "part3", "verified", "reason"]
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(review)
+    db.close()
+    print(f"\nWrote {args.out}\nReview: {review_path}")
+
+
+if __name__ == "__main__":
+    main()
