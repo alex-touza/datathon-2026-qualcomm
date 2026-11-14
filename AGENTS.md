@@ -6,6 +6,7 @@ Offline math copilot for the Arduino UNO Q (4 GB, aarch64) built on M3Kang.
 ## Non-negotiables
 
 - `predict.py` is scored on a hidden test **for every team, Teach or Reason** (README Step 13.3). Keep the contract: one letter A–E per problem, ≤60 s, no network, temperature 0 + fixed seed, `FALLBACK_ANSWER=D`.
+- Current scoring is **50% Reasoning (hidden exam) + 50% Teaching (jury)**. Both are required; do not optimize one half at the expense of the other.
 - In teaching features, use the dataset `label` to check the student's answer and to reject a hint that leaks it. The model is not the oracle; `predict.py` is still scored separately.
 - Answering code runs **on the board**. The laptop only prepares data (and may run a local replica for development).
 - Board runtime code uses the Python **standard library only**. There is no pip on the board.
@@ -21,6 +22,16 @@ Offline math copilot for the Arduino UNO Q (4 GB, aarch64) built on M3Kang.
 | Local replica of the two servers | laptop (`laptop/dev_servers.sh`) |
 
 On this workstation adb is at `~/.local/opt/platform-tools/adb`; SSH is the alternative when Wi-Fi is up. Board repo lives at `~/datathon-UPC-maths-qualcomm-arduino-unoq`; run Python commands from there.
+
+## Current direction (handoff)
+
+- **50% Reasoning + 50% Teaching**; the teaching half is jury-assessed and still unbuilt. Do not optimize only the hidden test.
+- Off-the-shelf model swaps are exhausted: no tested model both beats 23.1% significantly and fits the board. Do not start another model download (see Measured results).
+- Primary work is the teaching MVP in `copilot/tutor.py` plus a browser UI. Keep `predict.py` at the 0.8B baseline and untouched.
+- Board is operational: `math-llm` (0.8B) and `math-embed` active; data/index/images present. 3B, Jev-Vision and OneJev are experiments, not deployed.
+- Reuse teammate work: `laptop/repair_options.py` (OCR crop recovery/audit), `experiments/mcnemar.py` (significance), `Problemes amb calma.html` (uploaded on main).
+- `jaume/` is a local, gitignored M3Kang copy; it will not be in a fresh clone. Do not commit it.
+- No free-form chat is required: use buttons and hints. The LLM is optional and only for one short, code-checked hint.
 
 ## Commands
 
@@ -84,6 +95,17 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - `board/`: setup scripts + systemd templates rendered from `config.env`; `laptop/`: data prep + local servers; `experiments/`: offline experiments.
 - Keep teaching features in `copilot/tutor.py`, never in `predict.py`.
 
+## Teaching MVP (next)
+
+- UI: problem + image + options; answer A–E; hint button; next problem. Browser served by the board; LED matrix tick/cross/level when App Lab is ready.
+- Rung 1: easier solved neighbour from the index (`level < current`; use the English text by `id` for Catalan).
+- Rung 2: method/topic from a small keyword taxonomy + neighbours; no LLM.
+- Rung 3: one short 0.8B hint; reject it in code if it contains the correct option value or a standalone correct letter; fall back to rung 2.
+- Rung 4: reveal the correct option only on explicit request.
+- Adaptive next: right → neighbour one level up; wrong → same embedding neighbourhood one level down. Keep the profile in SQLite on the board.
+- Measure: latency per rung, leak rate on 20 problems, simulated-student path, 10 hand-judged hints.
+- Optional cheap `predict.py` rule: if `options` is empty, answer `D` (26.0% on that subset vs 25.1% for the 0.8B).
+
 ## Data and retrieval rules
 
 - 2,932 train / 562 val (eng+cat), 63% with OCR options, 3,494 images. The same problem `id` exists across languages; the split is by `id`.
@@ -104,6 +126,8 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - OneJev 1.6 0.8B, GGUF + llama.cpp, CPU: **19.5%** on 339; mean 3.57 s. No gain.
 - Jev-Vision 2B, GGUF + llama.cpp, CPU: **24.8%** on 339 (22.5% text, 27.3% image); vs 0.8B 76 fixed / 66 broken, **p=0.45**; predicts C 159 times vs 66 true C. Mean 6.51 s, worst 25.5 s. Not significant and a board-latency risk.
 - Off-the-shelf model swaps are exhausted: none both beats 23.1% significantly and fits the board. Do not start another model download. Prioritise teaching; the only optional reasoning bets are OCR crop recovery and a time-boxed Laya fine-tune.
+- Do not repeat: Qwen2.5-Math-1.5B (16%), Qwen3.5-2B (22.1%), Qwen2.5-3B (24.6%, board timeouts), permutation averaging (22.4%), Laya zero-shot (19.2%), Jev-Vision 0.8B (21.8%), OneJev 0.8B (19.5%), Jev-Vision 2B (24.8%, p=0.45).
+- The 3B's 28.3% on options (p=0.08) is the only signal; 6/10 board timeouts at 57 s median makes it undeployable.
 - The GGUF numbers above are laptop **CPU** (local llama.cpp has no CUDA); they are not board timings.
 - Treat `status=timeout` as a failure, not an answer: the `D` fallback inflates apparent accuracy. A model is only admissible if a board run has zero timeouts and comfortable median latency.
 - Simple letter/position debiasing does not move accuracy; the content signal is the bottleneck. Partial running accuracy drifts; report the final full-set number and McNemar, not a 50-problem delta or an early subset.
