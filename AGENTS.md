@@ -63,6 +63,7 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 ## Board gotchas
 
 - 3.6 GB RAM total. Every `llama-server` needs `--parallel 1 --cache-ram 0`; the LLM also needs `--ctx-checkpoints 2 --jinja --reasoning off --reasoning-budget 0`. Without them the OOM killer takes the server.
+- The 60 s limit is prefill-bound: a 1.8 GB 3B Q4 model times out at ~57 s on the four A53 cores. The 0.8B Q8 is the practical ceiling for this pipeline.
 - `/tmp` is tmpfs and is wiped on reboot. Put long build/eval logs, PID and exit markers, and detached scripts in `/home/arduino`. Use `nohup … </dev/null &`.
 - Clock must be NTP-synced; a wrong clock breaks apt/HTTPS. App Lab updates fix it; check `timedatectl`. Prefer `curl -4`: DNS may return IPv6 with no route.
 - Unexpected reboots: `last -x` marks unclean boots as "crash". Repeated reboots usually mean power; run the board from the **5 V / 3 A supply**, with USB for data only. Both services are enabled at boot and return in ~15 s.
@@ -97,7 +98,8 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - The 0.8B almost never predicts C or E (C 5, E 9 on full 562) and is below the always-D floor at level 0; level 3 is image-heavy and worst.
 - Permutation averaging over option orders: 23.1% → 22.4% full. Dead end.
 - Qwen2.5-Math-1.5B Q4: 16% on 50 (severe A bias). Qwen3.5-2B Q4: 22% on 50 but **22.1% full 562**, below the 23.1% baseline; rejected.
-- Qwen2.5-3B Q4: **24.6% full 562** (p=0.64 vs 0.8B), but **28.3% on the 339 problems with options** (p=0.08) and only 18.8% without. A rule — 3B when options exist, `D` otherwise — gives **27.4%** (p=0.14 vs 0.8B). Not statistically established; deploy only if board RAM/latency pass and the team accepts the gamble.
+- Qwen2.5-3B Q4: **24.6% full 562** (p=0.64), **28.3% with options** (p=0.08), 18.8% without. A 3B-with-options / `D`-otherwise rule gives 27.4% (p=0.14) — not established. **On the board it timed out on 6/10 problems (median 57.1 s), so it is not deployable.**
+- Treat `status=timeout` as a failure, not an answer: the `D` fallback inflates apparent accuracy. A model is only admissible if a board run has zero timeouts and comfortable median latency.
 - Simple letter/position debiasing does not move accuracy; the content signal is the bottleneck. Partial running accuracy drifts; report the final full-set number and McNemar, not a 50-problem delta or an early subset.
 
 ## Repo quirks
