@@ -13,11 +13,13 @@ Default selection: 200 problem ids, each in English and Catalan (400 rows),
 stratified by level. Only training problems with readable options are eligible.
 """
 import argparse
+import base64
 import csv
 import json
 import math
 import os
 import random
+import re
 import sqlite3
 import sys
 import time
@@ -51,33 +53,49 @@ CREATE TABLE IF NOT EXISTS solutions (
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--input", default="data/train.jsonl")
+    p.add_argument("--images", default="data/images")
     p.add_argument("--out", default="data/explanations.db")
     p.add_argument("--languages", default="eng,cat")
     p.add_argument("--limit-ids", type=int, default=200, help="unique problems; each is generated in every language")
     p.add_argument("--all", action="store_true", help="use every eligible id instead of a 200-id sample")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--name", default="solutions-v1")
-    p.add_argument("--model", default="deepseek-chat")
+    p.add_argument("--model", default="deepseek-v4-pro")
     p.add_argument("--base-url", default="https://api.deepseek.com")
     p.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
-    p.add_argument("--max-tokens", type=int, default=600)
+    p.add_argument("--max-tokens", type=int, default=3000)
+    p.add_argument("--reasoning-effort", default="low", choices=("low", "high", "max", ""),
+                   help="v4 Pro reasoning budget; low is enough for a structured solution")
     p.add_argument("--timeout", type=float, default=120)
     p.add_argument("--retries", type=int, default=3)
     p.add_argument("--force", action="store_true", help="regenerate rows that already exist")
     p.add_argument("--retry-failed", action="store_true", help="retry rows that exist but are unverified")
+    p.add_argument("--include-messy", action="store_true",
+                   help="allow OCR-garbled options in the selection (off by default)")
     p.add_argument("--stop-on-error", action="store_true")
     p.add_argument("--dry-run", action="store_true", help="print the prompt and selection; no API call")
     return p.parse_args()
 
 
-def load_eligible(path, languages):
+def clean_options(problem):
+    """Reject clearly garbled OCR options; a bad option confuses the model."""
+    options = problem.get("options") or {}
+    if len(options) != 5:
+        return False
+    values = [str(value).strip() for value in options.values()]
+    if any(not value or "=" in value or "\n" in value or len(value) > 40 for value in values):
+        return False
+    return len(set(values)) == 5
+
+
+def load_eligible(path, languages, clean=True):
     by_id = defaultdict(dict)
     with open(path) as handle:
         for line in handle:
             if not line.strip():
                 continue
             problem = json.loads(line)
-            if problem.get("options"):
+            if problem.get("options") and (not clean or clean_options(problem)):
                 by_id[problem["id"]][problem["language"]] = problem
     return {pid: langs for pid, langs in by_id.items()
             if all(lang in langs for lang in languages)}
@@ -125,20 +143,29 @@ def format_prompt(template, problem):
             .replace("{{VALUE}}", problem["options"][label]))
 
 
-def request_json(args, system, prompt):
+def request_json(args, system, prompt, image_b64=None):
     key = os.environ.get(args.api_key_env)
     if not key:
         raise SystemExit(f"set {args.api_key_env} first")
     url = args.base_url.rstrip("/") + "/chat/completions"
+    content = prompt
+    if image_b64:
+        content = [
+            {"type": "image_url",
+             "image_url": {"url": "data:image/jpeg;base64," + image_b64}},
+            {"type": "text", "text": prompt},
+        ]
     payload = {
         "model": args.model,
         "messages": [{"role": "system", "content": system},
-                     {"role": "user", "content": prompt}],
+                     {"role": "user", "content": content}],
         "temperature": 0,
         "seed": 42,
         "max_tokens": args.max_tokens,
         "response_format": {"type": "json_object"},
     }
+    if args.reasoning_effort:
+        payload["reasoning_effort"] = args.reasoning_effort
     request = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json",
                                               "Authorization": f"Bearer {key}"})
@@ -165,7 +192,7 @@ def parse_parts(content):
 def main():
     args = parse_args()
     languages = [lang.strip() for lang in args.languages.split(",") if lang.strip()]
-    eligible = load_eligible(args.input, languages)
+    eligible = load_eligible(args.input, languages, clean=not args.include_messy)
     rows = select_rows(eligible, languages, 0 if args.all else args.limit_ids, args.seed)
     print(f"{len(eligible)} eligible ids; selected {len(rows)} rows "
           f"({len({r['id'] for r in rows})} ids, {languages})", flush=True)
@@ -193,11 +220,19 @@ def main():
     print(f"{len(todo)} rows to generate", flush=True)
 
     for n, problem in enumerate(todo, 1):
-        prompt = format_prompt(template, problem)
         key = problem["id"] + "|" + problem["language"]
+        prompt = format_prompt(template, problem)
+        image_b64 = None
+        if not problem.get("text_only", True):
+            path = os.path.join(args.images, key.replace("|", "_") + ".png")
+            if os.path.exists(path):
+                with open(path, "rb") as handle:
+                    image_b64 = base64.b64encode(handle.read()).decode()
+                prompt = ("The problem includes the attached image; use it as part of "
+                          "the problem.\n\n" + prompt)
         parts, reason = None, ""
         try:
-            body = request_json(args, system, prompt)
+            body = request_json(args, system, prompt, image_b64)
             parts = parse_parts(body["choices"][0]["message"]["content"])
             ok, reason = check_parts(problem, parts)
         except Exception as error:  # noqa: BLE001 - record the failure, keep going

@@ -45,6 +45,17 @@ def safe_eval(expression):
     return _eval(ast.parse(expression, mode="eval"))
 
 
+def _final_number(text, label):
+    """The number next to the last mention of the correct option letter."""
+    from .tutor import numbers
+    for match in reversed(list(re.finditer(rf"\b{re.escape(label)}\b", text))):
+        found = numbers(text[match.end():match.end() + 40])
+        if found:
+            return found[0]
+    found = numbers(text)
+    return found[-1] if found else None
+
+
 def check_parts(problem, parts):
     """Return (ok, reason). `parts` has part1, part2, part3 strings."""
     from .tutor import _close, leak_check, numbers, option_values
@@ -72,12 +83,19 @@ def check_parts(problem, parts):
     if label not in options:
         return False, "problem has no valid label"
     right = options[label]
+    right_nums, _ = option_values(right)
+
+    def norm(text):
+        return re.sub(r"\s+", "", text.lower().replace("²", "2").replace("³", "3"))
+
     if not re.search(rf"\b{re.escape(label)}\b", part3):
         return False, "part3 does not name the correct letter"
-    if right.strip() and right.strip().lower() not in part3.lower():
-        return False, "part3 does not name the correct value"
-    if not re.search(rf"Answer:\s*{re.escape(label)}\b", part3, re.IGNORECASE):
-        return False, "part3 does not end with Answer: <letter>"
+    if right.strip() and norm(right) not in norm(part3):
+        if not (right_nums and any(_close(value, n)
+                                   for value in numbers(part3) for n in right_nums)):
+            return False, "part3 does not name the correct value"
+    # The model may write "Correct option: D) 10" rather than "Answer: D".
+    # The letter and value checks above are what matter.
 
     for expression, expected in _EQUATION.findall(part2 + "\n" + part3):
         try:
@@ -88,12 +106,10 @@ def check_parts(problem, parts):
         if not _close(got, want):
             return False, f"false arithmetic: {expression} = {expected}"
 
-    right_nums, _ = option_values(right)
     if right_nums:
-        body = re.split(r"Answer:", part3, maxsplit=1, flags=re.IGNORECASE)[0]
-        found = numbers(body)
-        if not found:
+        final = _final_number(part3, label)
+        if final is None:
             return False, "part3 has no numbers to check"
-        if not any(_close(found[-1], value) for value in right_nums):
-            return False, f"part3 last number {found[-1]} does not match the option"
+        if not any(_close(final, value) for value in right_nums):
+            return False, f"number next to the answer ({final}) does not match the option"
     return True, ""

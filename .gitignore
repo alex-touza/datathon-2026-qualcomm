@@ -21,3 +21,6 @@ __pycache__/
 
 # Local M3Kang copies from teammates: research data, never commit
 /jaume/
+
+# Cloud API keys: never commit
+/tools/api_key_deepseek

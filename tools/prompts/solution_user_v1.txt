@@ -10,7 +10,7 @@ Options:
 Correct option: {{LABEL}}) {{VALUE}}
 
 Part 1 — Nudge:
-One sentence, at most 20 words. Name the first thing to look at, count, or try.
+One sentence, at most 15 words. Name the first thing to look at, count, or try.
 Do not calculate. Do not mention the final answer, any option letter, or any
 option value. This hint must be deliberately small.
 
