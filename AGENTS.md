@@ -100,12 +100,18 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - Qwen2.5-Math-1.5B Q4: 16% on 50 (severe A bias). Qwen3.5-2B Q4: 22% on 50 but **22.1% full 562**, below the 23.1% baseline; rejected.
 - Qwen2.5-3B Q4: **24.6% full 562** (p=0.64), **28.3% with options** (p=0.08), 18.8% without. A 3B-with-options / `D`-otherwise rule gives 27.4% (p=0.14) — not established. **On the board it timed out on 6/10 problems (median 57.1 s), so it is not deployable.**
 - Laya multilingual zero-shot: **19.2%** on the 339 val-with-options (0.8B: 21.8%); near chance, so fine-tuning is required. It is tiny and fast (~0.02 s/problem on GPU, 322M), making it a viable fine-tune/deploy base.
+- Jev-Vision 0.8B, GGUF + llama.cpp, CPU here: **21.8%** on the 339 options (22.5% text-only, 21.1% image); mean 2.05 s, worst 7.6 s. No gain.
+- OneJev 1.6 0.8B, GGUF + llama.cpp, CPU: **19.5%** on 339; mean 3.57 s. No gain.
+- Jev-Vision 2B, GGUF + llama.cpp, CPU: **24.8%** on 339 (22.5% text, 27.3% image); vs 0.8B 76 fixed / 66 broken, **p=0.45**; predicts C 159 times vs 66 true C. Mean 6.51 s, worst 25.5 s. Not significant and a board-latency risk.
+- Off-the-shelf model swaps are exhausted: none both beats 23.1% significantly and fits the board. Do not start another model download. Prioritise teaching; the only optional reasoning bets are OCR crop recovery and a time-boxed Laya fine-tune.
+- The GGUF numbers above are laptop **CPU** (local llama.cpp has no CUDA); they are not board timings.
 - Treat `status=timeout` as a failure, not an answer: the `D` fallback inflates apparent accuracy. A model is only admissible if a board run has zero timeouts and comfortable median latency.
 - Simple letter/position debiasing does not move accuracy; the content signal is the bottleneck. Partial running accuracy drifts; report the final full-set number and McNemar, not a 50-problem delta or an early subset.
 
 ## Repo quirks
 
 - Laya experiments use `.venv-laya` (Python 3.12 + CUDA torch). Keep the main `.venv` for data prep; do not install Laya there.
+- `.venv-*/` (e.g. `.venv-laya`, `.venv-flide`) and `/jaume/` (local M3Kang copies) are gitignored. Never commit M3Kang data.
 - Laya's newer runtime advertises image input (`laya[vision]` / `vega`); untested on our data. OCR remains the source of option text for teaching and hint checks.
 - `config.env` is parsed by both bash (`board/common.sh`) and Python (`copilot/config.py`); Python environment variables override. Bash expands `~`.
 - `.opencode/skills/<id>/SKILL.md` is the discovery path (not `.opencode/.skills`). Load skills by ID with the skill tool.

@@ -16,4 +16,8 @@ results/*
 
 __pycache__/
 .venv/
+.venv-*/
 .DS_Store
+
+# Local M3Kang copies from teammates: research data, never commit
+/jaume/
