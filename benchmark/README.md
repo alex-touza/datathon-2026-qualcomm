@@ -105,3 +105,84 @@ python benchmark/omni.py --input data/benchmark/pilot.jsonl --mode vision \
 Amb `--mode text` el model llegeix l'enunciat i les opcions. El mode
 `vision` afegeix les imatges disponibles. La càrrega inicial del model
 queda fora de la latència per problema.
+
+## Comparació amb Jev sobre problemes originals
+
+Cada prova consumeix el mateix manifest. La clau és la parella `(id, language)`.
+Les files amb la mateixa `id` són traduccions del mateix problema. Un model de
+visió rep el PNG només quan el manifest en proporciona un.
+
+- Qwen rep un missatge de sistema, l'enunciat i les opcions. En visió, el missatge
+  també conté la imatge. `llama-server` restringeix la resposta amb la gramàtica
+  `root ::= [A-E]` i un únic token de sortida.
+- Jev allotjat rep l'enunciat a `state`, les alternatives com a criteris d'una
+  pregunta `Choice` i la imatge com a asset, si n'hi ha. El runner llegeix
+  `answers.answer.choice`.
+- d1-omni local usa la pregunta tipada equivalent i passa el PNG com a objecte RGB.
+  El runner també llegeix `choice` del resultat estructurat.
+- Els runners reben l'etiqueta per puntuar un cop feta la inferència. Els originals
+  inclouen figures generades a partir d'una solució calculada i M3Kang incorpora
+  la captura revisada de cada versió. Enviem una sola imatge completa per pregunta.
+  El projector de Qwen controla el pressupost d'imatge a `llama-server`.
+
+| Model i modalitat | Encerts ≤60 s | Encerts ≤100 s | Mediana | P95 |
+| --- | ---: | ---: | ---: | ---: |
+| Jev 1.14 text | 30/36 | 30/36 | 0,254 s | 0,316 s |
+| Jev 1.14 visió | 36/36 | 36/36 | 0,256 s | 0,337 s |
+| Qwen 0.8B text | 10/36 | 10/36 | 0,099 s | 0,257 s |
+| Qwen 0.8B visió | 13/36 | 13/36 | 0,232 s | 0,311 s |
+| d1-omni-600M text | 4/36 | 4/36 | 0,086 s | 0,179 s |
+| d1-omni-600M visió | 5/36 | 5/36 | 0,454 s | 1,666 s |
+
+Els 36 casos representen 12 problemes originals. El generador inicial posava la
+resposta correcta a la mediana numèrica de les cinc opcions. La regla de triar
+la mediana encerta 36/36 sense rebre enunciat ni imatge. El resultat inicial
+serveix per verificar el flux d’inferència. La mostra ampliada varia el rang
+numèric de la resposta. La latència de Jev inclou xarxa
+i servei. Els temps de Qwen i d1-omni corresponen al Mac amb el model carregat.
+
+El control amb Jev i només les opcions del pilot inicial va obtenir 13/36.
+
+## Mostra ampliada de M3Kang
+
+`stratified.py` busca a les quatre parts de `high_quality` i les deu de
+`standard` del snapshot fixat. Dona prioritat a `high_quality` quan el mateix
+problema i idioma apareixen als dos splits. Selecciona candidats per nivell i
+modalitat amb llavor fixa, excloent els identificadors del primer pilot.
+
+```sh
+python benchmark/stratified.py stage --exclude data/benchmark/pilot.jsonl \
+  --per-kind 2 --out data/benchmark/stratified-stage
+python benchmark/stratified.py export --staging data/benchmark/stratified-stage \
+  --reviewed CAMI_AL_TSV_PRIVAT --out data/benchmark/stratified
+```
+
+El TSV privat de revisió conté slot, rang, tipus, SHA-256 del PNG i, per a
+opcions textuals, cinc opcions separades per `|`. L'export verifica la cobertura
+de tots els slots i el hash de cada imatge revisada. La mostra d'aquest
+benchmark conté 32 problemes nous, dos només amb text i dos amb imatge per
+nivell, amb 11 entrades en anglès, 11 en català i 10 en castellà. En aquest
+sorteig totes les files seleccionades són de `high_quality`.
+
+| Mode sobre la mateixa mostra M3Kang | Encerts ≤60 s | Encerts ≤100 s | Mediana al Mac |
+| --- | ---: | ---: | ---: |
+| Qwen 0.8B · OCR | 3/32 | 3/32 | 0,096 s |
+| Qwen 0.8B · opcions revisades | 6/32 | 6/32 | 0,101 s |
+| Qwen 0.8B · opcions revisades + captura | 7/32 | 7/32 | 0,223 s |
+| d1-omni-600M · opcions revisades + captura | 7/32 | 7/32 | 1,680 s |
+
+## Originals ampliats
+
+```sh
+python benchmark/synthetic.py --expanded --out data/benchmark/synthetic-expanded
+```
+
+Això genera els 36 casos inicials i 96 files noves amb identificadors
+`expanded-*`. Per reproduir la comparació ampliada, filtreu el manifest a
+aquests identificadors i mantingueu les rutes de les imatges relatives al
+directori del manifest. Hi ha dos problemes de text i dos de gràfic per
+cadascuna de les vuit bandes construïdes, amb tres traduccions de cada
+problema. Les bandes dels originals no tenen una calibració de dificultat.
+Les figures són PNG de 800 × 500. Els distractors es mostregen d'un interval
+de magnitud sense un patró fix de distàncies a la solució, però poden ser poc
+plausibles en alguns enunciats.
