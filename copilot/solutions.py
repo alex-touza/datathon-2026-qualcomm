@@ -94,4 +94,11 @@ def check_parts(problem, parts):
             continue
         if not _close(got, want):
             return False, f"false arithmetic: {expression} = {expected}"
+
+    if right_nums:
+        found = numbers(part3)
+        if not found:
+            return False, "part3 has no numbers to check"
+        if not any(_close(found[-1], value) for value in right_nums):
+            return False, "part3 must end with the correct option, not a check after it"
     return True, ""

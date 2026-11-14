@@ -1,0 +1,37 @@
+Solve the problem below and write the solution in exactly three parts, in the
+same language as the problem.
+
+Problem:
+{{PROBLEM}}
+
+Options:
+{{OPTIONS}}
+
+Correct option: {{LABEL}}) {{VALUE}}
+
+Part 1 — Nudge:
+One sentence, at most 15 words. Name the first thing to look at, count, or try.
+Do not calculate. Do not mention the final answer, any option letter, or any
+option value. This hint must be deliberately small.
+
+Part 2 — Work:
+The next calculation or step(s), showing intermediate values. Stop before the
+final answer. Do not mention the correct option letter or value, and do not
+write any number that equals the correct option value.
+
+Part 3 — Conclude:
+First write one short sentence checking the result. Then end with the correct
+option letter and value. The correct option must be the last thing in this
+part: do not add a check, sentence, or number after it.
+
+Rules:
+- Use only the quantities and information given in the problem.
+- Do not invent numbers, facts, or a different correct option.
+- Parts 1 and 2 must not contain the correct option's letter or value, even in words.
+- Part 3 must end with the correct option letter and its value.
+- The three parts together must form one coherent solution.
+- Do not write "Check:" after the final answer.
+- If the problem is in Catalan, write the whole answer in Catalan.
+
+Return exactly this JSON object and nothing else:
+{"part1": "...", "part2": "...", "part3": "..."}

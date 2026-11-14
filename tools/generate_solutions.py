@@ -61,6 +61,7 @@ def parse_args():
     p.add_argument("--all", action="store_true", help="use every eligible id instead of a 200-id sample")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--name", default="solutions-v1")
+    p.add_argument("--prompt-version", default="v2")
     p.add_argument("--model", default="deepseek-v4-pro")
     p.add_argument("--base-url", default="https://api.deepseek.com")
     p.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
@@ -131,7 +132,7 @@ def select_rows(eligible, languages, limit_ids, seed):
 def read_prompt():
     with open(os.path.join(PROMPTS, "solution_system_v1.txt")) as handle:
         system = handle.read().strip()
-    with open(os.path.join(PROMPTS, "solution_user_v1.txt")) as handle:
+    with open(os.path.join(PROMPTS, "solution_user_v2.txt")) as handle:
         user = handle.read()
     return system, user
 
@@ -266,7 +267,7 @@ def main():
             db.execute(
                 "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (key, problem["id"], problem["language"], problem.get("level"),
-                 row["part1"], row["part2"], row["part3"], args.model, args.name,
+                 row["part1"], row["part2"], row["part3"], args.model, args.prompt_version,
                  int(row["verified"]), "" if row["verified"] else row["reason"], time.time()))
             db.commit()
             review.append(row)
