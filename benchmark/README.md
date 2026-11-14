@@ -186,3 +186,18 @@ problema. Les bandes dels originals no tenen una calibració de dificultat.
 Les figures són PNG de 800 × 500. Els distractors es mostregen d'un interval
 de magnitud sense un patró fix de distàncies a la solució, però poden ser poc
 plausibles en alguns enunciats.
+
+| Model i modalitat | Encerts ≤60 s | Encerts ≤100 s | Mediana | P95 |
+| --- | ---: | ---: | ---: | ---: |
+| Jev 1.14 text | 44/96 | 44/96 | 0,411 s | 0,879 s |
+| Jev 1.14 visió | 86/96 | 86/96 | 0,305 s | 0,487 s |
+| Jev 1.14 només opcions | 20/96 | 20/96 | 0,290 s | 0,512 s |
+| Qwen 0.8B text | 23/96 | 23/96 | 0,090 s | 0,101 s |
+| Qwen 0.8B visió | 19/96 | 19/96 | 0,144 s | 0,224 s |
+| d1-omni-600M text | 23/96 | 23/96 | 0,097 s | 0,146 s |
+| d1-omni-600M visió | 24/96 | 24/96 | 0,369 s | 0,679 s |
+
+La regla de la mediana encerta 9/96 en aquesta mostra. En les 48 entrades
+amb gràfic, Jev passa de 3/48 sense imatge a 45/48 amb imatge. En les 48
+entrades només de text, encerta 41/48 en cada passada. Els sis modes han
+retornat respostes vàlides per a totes les entrades.
