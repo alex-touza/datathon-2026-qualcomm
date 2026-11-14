@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Problemes amb calma</title>
+<style>
+@font-face{font-family:"Dys";src:local("OpenDyslexic"),local("OpenDyslexic Regular"),local("Lexend"),local("Lexend Regular"),local("Atkinson Hyperlegible"),local("AtkinsonHyperlegible-Regular");font-display:swap}
+:root{--bg:#fbf5e6;--fg:#2b2b2b;--card:#fffdf6;--ac:#1d6a7d;--acfg:#fff;--line:#d6ccb0;--ok:#2d7a3e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c2024;--fg:#ebe6d8;--card:#262b31;--ac:#7cc4d8;--acfg:#10181c;--line:#3c444c;--ok:#8fd19e}}
+:root[data-theme="dark"]{--bg:#1c2024;--fg:#ebe6d8;--card:#262b31;--ac:#7cc4d8;--acfg:#10181c;--line:#3c444c;--ok:#8fd19e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:19px/1.6 system-ui,"Segoe UI",sans-serif}
+body.dys{font-family:"Dys",system-ui,sans-serif;font-size:24px;line-height:1.9;letter-spacing:.06em;word-spacing:.22em}
+main{max-width:42rem;margin:0 auto;padding:1rem 1rem 3rem}
+h1{font-size:1.35em;margin:.4em 0 .2em;line-height:1.3}
+.card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:1rem 1.1rem;margin:0 0 1rem}
+legend{font-weight:700;padding:0 .4em}
+.chk{display:flex;gap:.8em;align-items:flex-start;min-height:48px;padding:.4em 0;cursor:pointer}
+.chk input{width:1.6em;height:1.6em;margin-top:.15em;accent-color:var(--ac);flex:none}
+.chk small{display:block;opacity:.85;font-size:.8em;line-height:1.4}
+.btn{font:inherit;letter-spacing:inherit;word-spacing:inherit;min-height:48px;padding:.3em 1em;border-radius:14px;border:2px solid var(--ac);background:var(--card);color:var(--fg);cursor:pointer}
+.btn.pri{background:var(--ac);color:var(--acfg);font-weight:700}
+body.dgr .btn{min-height:64px}
+:focus-visible{outline:4px solid var(--ac);outline-offset:3px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.85em}
+.track{height:12px;background:var(--line);border-radius:8px;overflow:hidden;margin:.3rem 0 1rem}
+#bar{height:100%;background:var(--ac);width:0}
+#q p{margin:.4em 0}
+.tag{font-size:.8em;padding:.3em .6em;border-radius:8px;background:var(--bg);border:2px solid var(--line)}
+.ask{font-weight:700;font-size:1.1em;margin-top:1.1em!important;padding-left:.6em;border-left:6px solid var(--ac)}
+mark{background:#ffe27a;color:#222;border-radius:5px;padding:0 .15em}
+details{margin:.6em 0;font-size:.85em}
+#opts{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0}
+.row{display:flex;gap:.4rem;flex:0 1 auto}
+body.dys .row{flex:1 1 100%}
+.opt{flex:1;display:flex;align-items:center;gap:.7em;text-align:left}
+.opt b{display:inline-grid;place-items:center;min-width:1.8em;height:1.8em;border-radius:50%;border:2px solid currentColor}
+.opt[aria-pressed="true"]{background:var(--ac);color:var(--acfg)}
+.opt.ok{outline:4px solid var(--ok);outline-offset:2px}
+.opt.ok::after{content:"✔";margin-left:auto;font-weight:700}
+#steps p{margin:.4em 0;padding:.4em .7em;border-left:6px solid var(--ac);background:var(--bg);border-radius:6px}
+#led{display:grid;grid-template-columns:repeat(13,1fr);gap:6px;max-width:22rem;padding:.7rem;background:#111;border-radius:12px;margin:.6rem 0}
+#led i{aspect-ratio:1;border-radius:50%;background:#2a2f36}
+#led i.on{background:#ffd23f;box-shadow:0 0 6px #ffd23f}
+#fb{margin:.8rem 0 0;font-weight:700}
+.acts{display:flex;flex-wrap:wrap;gap:.6rem;margin:.8rem 0 0}
+textarea{font:inherit;letter-spacing:inherit;word-spacing:inherit;width:100%;min-height:5em;background:var(--card);color:var(--fg);border:2px dashed var(--line);border-radius:12px;padding:.5em;box-sizing:border-box}
+.kb,#notesbox{display:none}
+body.dgr .kb{display:block}
+body.dgr #notesbox{display:block}
+small{font-size:.7em;opacity:.85}
+</style>
+</head>
+<body>
+<main>
+<h1>Problemes amb calma</h1>
+<fieldset class="card"><legend>Com t’ajudem?</legend>
+<label class="chk"><input type="checkbox" id="dys"><span><b>Dislèxia</b><small>Frases curtes, una idea per línia, lletra gran i opcions una per línia</small></span></label>
+<label class="chk"><input type="checkbox" id="dgr"><span><b>Disgrafia</b><small>Respondre amb un clic, dictar i botons grans</small></span></label>
+<label class="chk"><input type="checkbox" id="cal"><span><b>Discalcúlia</b><small>Primer nombres més petits, pas a pas i amb punts de llum</small></span></label>
+</fieldset>
+
+<section class="card">
+<div class="top"><span id="prog"></span><button class="btn" id="readq" type="button">🔊 Escolta</button></div>
+<div class="track"><div id="bar"></div></div>
+<div id="game">
+<div id="q"></div>
+<div id="opts" role="group" aria-label="Opcions de resposta"></div>
+<p class="kb"><small>Pots triar també amb les tecles A, B, C, D o E.</small></p>
+<div id="steps"></div>
+<div id="led" role="img" hidden></div>
+<div id="fb" role="status" aria-live="polite"></div>
+<div class="acts">
+<button class="btn" id="stepb" type="button">💡 Mostra el primer pas</button>
+<button class="btn pri" id="check" type="button">Comprova</button>
+<button class="btn pri" id="next" type="button" hidden>Següent</button>
+</div>
+</div>
+<div id="end" hidden></div>
+</section>
+
+<section class="card" id="notesbox">
+<label for="notes"><b>Espai per pensar</b> <small>(no cal escriure bé)</small></label>
+<textarea id="notes" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Escriu o dicta…"></textarea>
+<div class="acts"><button class="btn" id="dict" type="button">🎤 Dicta</button><button class="btn" id="clr" type="button">Esborra</button></div>
+</section>
+<p><small>Demostració: els enunciats adaptats d’aquests quatre problemes estan escrits a mà. A la placa els generaria el copilot.</small></p>
+</main>
+
+<script>
+const P=[
+{t:`La Marta té 12 caramels i en dona 5 a la seva germana; després, l’àvia li’n regala 3 més. Quants caramels té la Marta en acabar?`,
+ l:[`La Marta té 12 caramels.`,`Dona 5 caramels a la germana.`,`L’àvia li’n dona 3 més.`],qn:`Quants caramels té ara?`,o:["7","8","10","14","20"],a:2,
+ s:[{t:`La Marta comença amb 12 caramels.`,v:[12]},{t:`En dona 5: 12 − 5 = 7.`,v:[12,5,7]},{t:`Rep 3 més: 7 + 3 = 10.`,v:[7,3,10]}],
+ e:{l:[`La Marta té 6 caramels.`,`Dona 2 caramels a la germana.`,`L’àvia li’n dona 3 més.`],qn:`Quants caramels té ara?`,o:["5","6","7","8","9"],a:2,
+ s:[{t:`Comença amb 6 caramels.`,v:[6]},{t:`En dona 2: 6 − 2 = 4.`,v:[6,2,4]},{t:`Rep 3 més: 4 + 3 = 7.`,v:[4,3,7]}]}},
+{t:`En una fila hi ha 7 nens i l’Aina és la tercera començant per l’esquerra; quants nens hi ha a la seva dreta?`,
+ l:[`Hi ha 7 nens en una fila.`,`L’Aina és la 3a des de l’esquerra.`],qn:`Quants nens té a la dreta?`,o:["2","3","4","5","6"],a:2,
+ s:[{t:`Hi ha 7 nens en total.`,v:[7]},{t:`Fins a l’Aina n’hi ha 3.`,v:[7,3]},{t:`A la dreta en queden 7 − 3 = 4.`,v:[7,3,4]}],
+ e:{l:[`Hi ha 5 nens en una fila.`,`L’Aina és la 2a des de l’esquerra.`],qn:`Quants nens té a la dreta?`,o:["1","2","3","4","5"],a:2,
+ s:[{t:`Hi ha 5 nens en total.`,v:[5]},{t:`Fins a l’Aina n’hi ha 2.`,v:[5,2]},{t:`A la dreta en queden 5 − 2 = 3.`,v:[5,2,3]}]}},
+{t:`Un autobús surt a les 8:45 i el trajecte dura 50 minuts; a quina hora arriba a destinació?`,
+ l:[`L’autobús surt a les 8:45.`,`El viatge dura 50 minuts.`],qn:`A quina hora arriba?`,o:["9:25","9:30","9:35","9:40","9:45"],a:2,
+ s:[{t:`Surt a les 8:45.`},{t:`Fins a les 9:00 hi ha 15 minuts.`},{t:`Dels 50 minuts en queden 50 − 15 = 35.`},{t:`9:00 i 35 minuts més: 9:35.`}],
+ e:{l:[`L’autobús surt a les 8:00.`,`El viatge dura 30 minuts.`],qn:`A quina hora arriba?`,o:["8:20","8:30","8:40","9:00","9:30"],a:1,
+ s:[{t:`Surt a les 8:00.`},{t:`Hi sumem 30 minuts.`},{t:`8:00 i 30 minuts més: 8:30.`}]}},
+{t:`Un quadrat té un perímetre de 20 cm, és a dir, la longitud de tot el seu voltant; quant mesura cada costat?`,
+ l:[`Un quadrat té perímetre 20 cm.`,`El perímetre és la volta de tot el quadrat.`],qn:`Quant fa un costat?`,o:["4 cm","5 cm","10 cm","16 cm","80 cm"],a:1,
+ s:[{t:`Tenim 20 cm de volta.`},{t:`Un quadrat té 4 costats iguals.`},{t:`Repartim: 20 ÷ 4 = 5 cm.`}],
+ e:{l:[`Un quadrat té perímetre 8 cm.`,`El perímetre és la volta de tot el quadrat.`],qn:`Quant fa un costat?`,o:["1 cm","2 cm","4 cm","8 cm","32 cm"],a:1,
+ s:[{t:`Tenim 8 cm de volta.`,v:[8]},{t:`Els repartim entre 4 costats iguals: 2 cada un.`,v:[8,2,2,2,2]},{t:`8 ÷ 4 = 2 cm.`,v:[2]}]}}
+];
+const $=s=>document.querySelector(s);
+const dys=$("#dys"),dgr=$("#dgr"),cal=$("#cal");
+let i=0,ph=0,st=0,sel=-1,tries=0,first=0,solved=false;
+const cur=()=>{const p=P[i];return cal.checked&&ph===0?{l:p.e.l,qn:p.e.qn,o:p.e.o,a:p.e.a,s:p.e.s,easy:true}:{l:dys.checked?p.l:null,qn:p.qn,o:p.o,a:p.a,s:p.s,t:p.t}};
+function modes(){
+ document.body.classList.toggle("dys",dys.checked);document.body.classList.toggle("dgr",dgr.checked);
+ try{localStorage.setItem("pc2",JSON.stringify([dys.checked,dgr.checked,cal.checked]))}catch(e){}
+}
+function drawQ(){
+ const c=cur(),f=t=>cal.checked?t.replace(/\d+(?:[:,.]\d+)*/g,m=>`<mark>${m}</mark>`):t;
+ let h=c.easy?`<p class="tag">Nombres més petits. És la mateixa idea.</p>`:"";
+ if(c.l){h+=c.l.map(l=>`<p>${f(l)}</p>`).join("")+`<p class="ask">${c.qn}</p>`;if(!c.easy)h+=`<details><summary>Enunciat original</summary><p>${c.t}</p></details>`}
+ else h+=`<p>${f(c.t)}</p>`;
+ $("#q").innerHTML=h;
+}
+function led(v){
+ let h="";for(let r=0;r<8;r++)for(let k=0;k<13;k++)h+=`<i class="${v[r]>k?"on":""}"></i>`;
+ const L=$("#led");L.innerHTML=h;L.setAttribute("aria-label","Quantitats en barres de punts: "+v.join(", "));
+ if(window.boardLED)window.boardLED(v);
+}
+function drawS(){
+ const c=cur(),sh=c.s.slice(0,st),last=sh.filter(s=>s.v).pop();
+ $("#steps").innerHTML=sh.map((s,k)=>`<p><b>Pas ${k+1}.</b> ${s.t}</p>`).join("");
+ $("#led").hidden=!(cal.checked&&last);if(cal.checked&&last)led(last.v);
+ $("#stepb").textContent=st===0?"💡 Mostra el primer pas":"💡 Mostra el pas següent";
+ $("#stepb").hidden=st>=c.s.length||solved;
+}
+function render(){
+ const c=cur();sel=-1;tries=0;solved=false;st=0;
+ $("#prog").textContent=`Problema ${i+1} de ${P.length}`;$("#bar").style.width=(i/P.length*100)+"%";
+ drawQ();
+ $("#opts").innerHTML=c.o.map((t,k)=>`<div class="row"><button type="button" class="btn opt" data-k="${k}" aria-pressed="false"><b>${"ABCDE"[k]}</b><span>${t}</span></button><button type="button" class="btn say" data-t="Opció ${"ABCDE"[k]}. ${t}" aria-label="Escolta l’opció ${"ABCDE"[k]}">🔊</button></div>`).join("");
+ $("#fb").textContent="";$("#check").hidden=false;$("#next").hidden=true;$("#notes").value="";drawS();
+}
+function say(t){
+ if(!("speechSynthesis" in window)){$("#fb").textContent="Aquest navegador no pot llegir en veu alta.";return}
+ speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="ca-ES";u.rate=.85;speechSynthesis.speak(u);
+}
+function choose(k){
+ if(solved)return;sel=k;
+ document.querySelectorAll(".opt").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.k===k)));
+}
+$("#opts").addEventListener("click",e=>{
+ const s=e.target.closest(".say");if(s){say(s.dataset.t);return}
+ const o=e.target.closest(".opt");if(o)choose(+o.dataset.k);
+});
+$("#readq").addEventListener("click",()=>{const c=cur();say((c.l?c.l.join(" ")+" "+c.qn:c.t)+" "+c.o.map((t,k)=>`Opció ${"ABCDE"[k]}. ${t}.`).join(" "))});
+$("#stepb").addEventListener("click",()=>{st++;drawS()});
+$("#check").addEventListener("click",()=>{
+ const c=cur();
+ if(sel<0){$("#fb").textContent="Tria una resposta primer. Tens temps.";return}
+ tries++;
+ if(sel===c.a){
+  solved=true;if(tries===1&&!c.easy)first++;
+  document.querySelector(`.opt[data-k="${sel}"]`).classList.add("ok");
+  st=c.s.length;drawS();
+  $("#fb").textContent="✔ Molt bé!"+(c.easy?" Ara el problema de debò.":"");
+  $("#check").hidden=true;
+  const n=$("#next");n.textContent=c.easy?"Ara el problema real":(i<P.length-1?"Següent problema":"Acabar");n.hidden=false;n.focus();
+ }else $("#fb").textContent="↻ Encara no, no passa res. Mira un pas o prova una altra opció.";
+});
+$("#next").addEventListener("click",()=>{
+ if(cal.checked&&ph===0){ph=1;render();return}
+ i++;ph=0;if(i>=P.length)finish();else render();
+});
+function finish(){
+ $("#game").hidden=true;$("#readq").hidden=true;$("#bar").style.width="100%";$("#prog").textContent="Has acabat";
+ const e=$("#end");e.hidden=false;
+ e.innerHTML=`<p><b>Bona feina!</b></p><p>Has resolt els ${P.length} problemes, ${first} a la primera. Cada intent compta per aprendre.</p><button class="btn pri" id="again" type="button">Torna-ho a fer</button>`;
+ $("#again").addEventListener("click",()=>{i=0;ph=0;first=0;e.hidden=true;$("#game").hidden=false;$("#readq").hidden=false;render()});
+}
+addEventListener("keydown",e=>{
+ if(/^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;
+ const k="abcde".indexOf(e.key.toLowerCase());
+ if(k>=0&&!$("#game").hidden&&k<cur().o.length)choose(k);
+});
+[dys,dgr,cal].forEach(el=>el.addEventListener("change",()=>{modes();ph=0;if(!$("#game").hidden)render()}));
+try{const m=JSON.parse(localStorage.getItem("pc2")||"[]");dys.checked=!!m[0];dgr.checked=!!m[1];cal.checked=!!m[2]}catch(e){}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){$("#dict").disabled=true;$("#dict").title="Aquest navegador no admet el dictat"}
+else{
+ const r=new SR();r.lang="ca-ES";
+ r.onresult=e=>{const n=$("#notes");n.value+=(n.value?" ":"")+e.results[0][0].transcript};
+ r.onend=()=>{$("#dict").textContent="🎤 Dicta"};
+ $("#dict").addEventListener("click",()=>{try{r.start();$("#dict").textContent="● Escoltant…"}catch(e){}});
+}
+$("#clr").addEventListener("click",()=>{$("#notes").value=""});
+modes();render();
+</script>
+</body>
+</html>
