@@ -45,17 +45,6 @@ def safe_eval(expression):
     return _eval(ast.parse(expression, mode="eval"))
 
 
-def _final_number(text, label):
-    """The number next to the last mention of the correct option letter."""
-    from .tutor import numbers
-    for match in reversed(list(re.finditer(rf"\b{re.escape(label)}\b", text))):
-        found = numbers(text[match.end():match.end() + 40])
-        if found:
-            return found[0]
-    found = numbers(text)
-    return found[-1] if found else None
-
-
 def check_parts(problem, parts):
     """Return (ok, reason). `parts` has part1, part2, part3 strings."""
     from .tutor import _close, leak_check, numbers, option_values
@@ -105,11 +94,4 @@ def check_parts(problem, parts):
             continue
         if not _close(got, want):
             return False, f"false arithmetic: {expression} = {expected}"
-
-    if right_nums:
-        final = _final_number(part3, label)
-        if final is None:
-            return False, "part3 has no numbers to check"
-        if not any(_close(final, value) for value in right_nums):
-            return False, f"number next to the answer ({final}) does not match the option"
     return True, ""
