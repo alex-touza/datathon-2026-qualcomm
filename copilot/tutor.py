@@ -457,14 +457,14 @@ class Tutor:
             easier = [(s, p) for s, p in ranked if p.get("level", 0) == level]
             easier_flag = False
         if not easier:
-            return None, True
+            return None, easier_flag
         same_language = [(s, p) for s, p in easier if p.get("language") == problem.get("language")]
         same_topic = [(s, p) for s, p in same_language
                       if topics.classify(p.get("text", ""))["topic"] == topic]
-        for pool in (same_topic, same_language, easier):
-            if pool:
-                return pool[0], easier_flag
-        return None, True
+        # Strict same-topic: a different-topic worked example is not a hint.
+        if same_topic:
+            return same_topic[0], easier_flag
+        return None, easier_flag
 
     def hint(self, problem, rung):
         """One rung. Returns {"rung", "kind", "text", "status", "seconds", "detail"}."""
@@ -604,20 +604,12 @@ class Tutor:
 
         attempts = [
             [pair for pair in same_topic if pair[1].get("level") == target],
-            [pair for pair in pool if pair[1].get("level") == target],
             rank_of(towards(same_topic)),
-            rank_of(towards(pool)),
-            by_distance(pool),
+            by_distance(same_topic),
         ]
         chosen = next((pairs[0] for pairs in attempts if pairs), None)
         if chosen is None:
-            fallback = self.first_problem(level=target, language=language)
-            if fallback is None:
-                return None
-            return {"problem": self.public(fallback), "target_level": target,
-                    "topic": topics.classify(fallback.get("text", ""))["topic"],
-                    "reason": "level only, retrieval had no candidates",
-                    "seconds": round(time.perf_counter() - start, 2)}
+            return None
         score, nxt = chosen
         nxt_topic = topics.classify(nxt.get("text", ""))["topic"]
         if nxt_topic != topic:
