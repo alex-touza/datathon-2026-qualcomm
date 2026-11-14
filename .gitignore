@@ -11,6 +11,9 @@ results/*
 *.gguf
 *.db
 
+# Local agent configuration contains API keys: never commit it
+/opencode.json
+
 __pycache__/
 .venv/
 .DS_Store

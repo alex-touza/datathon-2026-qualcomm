@@ -735,6 +735,7 @@ Useful options:
 | `--val-fraction 0.15` | Share of problems held out for validation (the default) |
 | `--val-years 2023,2024` | Hold out whole years instead, which is closer to an unseen test |
 | `--save-images` | Also save every image as a PNG, so you can look at the problems |
+| `--workers 8` | Read the images in parallel processes (default: up to 8). About 2.5 s per image per process. |
 | `--no-ocr` | Skip OCR. Every problem then has empty options. |
 
 The same problem has the same `id` in every language, so the split is made by `id`: a problem's translations are never split between training and validation.
@@ -1103,23 +1104,23 @@ Then write down, in a few lines: the idea, the number you'll measure, and your f
 
 ### 14.1 Work with Claude and the skills in this repository
 
-The [`.skills`](.skills) folder holds skills for Claude: instructions that teach it how this board, this code, and this datathon work, so it gives you commands and code that run on the UNO Q.
+The [`.opencode/skills`](.opencode/skills) folder holds skills for Claude and OpenCode: instructions that teach it how this board, this code, and this datathon work, so it gives you commands and code that run on the UNO Q.
 
 | Skill | Use it to |
 | --- | --- |
-| [`unoq-board`](.skills/unoq-board/SKILL.md) | Connect, check the services and the RAM, and fix the board |
-| [`m3kang-copilot`](.skills/m3kang-copilot/SKILL.md) | Change the copilot, run experiments, and analyse the errors |
-| [`unoq-hardware-ui`](.skills/unoq-hardware-ui/SKILL.md) | Build an App Lab app with a web page and the LED matrix |
-| [`publish-project`](.skills/publish-project/SKILL.md) | Write your GitHub repository and your Project Hub write-up |
+| [`unoq-board`](.opencode/skills/unoq-board/SKILL.md) | Connect, check the services and the RAM, and fix the board |
+| [`m3kang-copilot`](.opencode/skills/m3kang-copilot/SKILL.md) | Change the copilot, run experiments, and analyse the errors |
+| [`unoq-hardware-ui`](.opencode/skills/unoq-hardware-ui/SKILL.md) | Build an App Lab app with a web page and the LED matrix |
+| [`publish-project`](.opencode/skills/publish-project/SKILL.md) | Write your GitHub repository and your Project Hub write-up |
 
 To use them with Claude Code, on your laptop, from your clone of the repository:
 
 ```bash
 mkdir -p .claude
-ln -s ../.skills .claude/skills
+ln -s ../.opencode/skills .claude/skills
 ```
 
-Claude Code finds them on its own when they fit your request, or you can ask for one by name: "Use the m3kang-copilot skill to add a hint ladder." See [.skills/README.md](.skills/README.md) for other ways to use them.
+Claude Code finds them on its own when they fit your request, or you can ask for one by name: "Use the m3kang-copilot skill to add a hint ladder." See [.opencode/skills/README.md](.opencode/skills/README.md) for other ways to use them.
 
 Claude can help you write code, but you're the ones who decide and measure. Run every change on the board, and check the numbers yourself.
 
@@ -1152,7 +1153,7 @@ M3Kang has no topic field, so you'll need to add one: cluster the embeddings, lo
 
 The datathon uses no external modules: the board's 8x13 LED matrix is the only hardware you add. Students answer on a web page, and the board answers on the matrix: a letter, a tick or a cross, a level, or vote counts.
 
-An App Lab app has two halves: `python/main.py` runs on Linux next to the model servers, and serves the web page with the `web_ui` brick. `sketch/sketch.ino` runs on the microcontroller and draws on the LED matrix. The Bridge connects them. The [`unoq-hardware-ui`](.skills/unoq-hardware-ui/SKILL.md) skill has a complete starting app.
+An App Lab app has two halves: `python/main.py` runs on Linux next to the model servers, and serves the web page with the `web_ui` brick. `sketch/sketch.ino` runs on the microcontroller and draws on the LED matrix. The Bridge connects them. The [`unoq-hardware-ui`](.opencode/skills/unoq-hardware-ui/SKILL.md) skill has a complete starting app.
 
 Check two things early:
 
@@ -1217,7 +1218,7 @@ A structure that works:
 
 Cite M3Kang (Torres-Camps et al., 2026, [arXiv:2601.16218](https://arxiv.org/abs/2601.16218)), and don't upload its data. If you want to show an example problem, check the license on the dataset card first.
 
-The [`publish-project`](.skills/publish-project/SKILL.md) skill can check your README and your write-up against this list.
+The [`publish-project`](.opencode/skills/publish-project/SKILL.md) skill can check your README and your write-up against this list.
 
 ---
 

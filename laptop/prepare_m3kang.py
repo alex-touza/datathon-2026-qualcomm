@@ -45,6 +45,8 @@ def parse_args():
     p.add_argument("--out", default="data", help="output folder")
     p.add_argument("--no-ocr", action="store_true", help="skip OCR; options will be empty")
     p.add_argument("--save-images", action="store_true", help="also save problem images as PNG")
+    p.add_argument("--workers", type=int, default=min(8, os.cpu_count() or 1),
+                   help="OCR processes in parallel (default: up to 8)")
     p.add_argument("--limit", type=int, default=0, help="only process the first N rows (for testing)")
     return p.parse_args()
 
@@ -134,9 +136,49 @@ def parse_options(boxes):
     return {}
 
 
+# --- OCR in parallel --------------------------------------------------------
+# One image takes a few seconds to read, and the work is independent, so a
+# laptop with more cores finishes in a fraction of the time.
+
+_WORKER_OCR = None
+
+
+def _init_worker(threads):
+    global _WORKER_OCR
+    from rapidocr_onnxruntime import RapidOCR
+    # Measured: one image takes the same time with 1 or 28 threads (the models
+    # are small), so each worker uses one thread and the processes do the
+    # parallel work. More threads per worker only contend with each other.
+    _WORKER_OCR = RapidOCR(intra_op_num_threads=threads, inter_op_num_threads=1)
+
+
+def _ocr_boxes(image):
+    boxes, _ = _WORKER_OCR(image)
+    return boxes
+
+
+def ocr_boxes(pending, ocr, workers):
+    """Yield OCR boxes for each (row index, key, image) in pending, in order."""
+    if workers > 1:
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor
+        # "spawn" starts clean workers: a forked parent would copy the whole
+        # parquet table into every process.
+        with ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"),
+                                 initializer=_init_worker, initargs=(1,)) as pool:
+            yield from pool.map(_ocr_boxes, (image for _i, _key, image in pending), chunksize=4)
+    else:
+        for _i, _key, image in pending:
+            boxes, _ = ocr(image)
+            yield boxes
+
+
 def main():
     args = parse_args()
     import pyarrow.parquet as pq
+
+    if args.workers < 1:
+        sys.exit("--workers must be at least 1")
 
     languages = set(args.languages.split(","))
     val_years = set(y for y in args.val_years.split(",") if y)
@@ -145,7 +187,8 @@ def main():
         os.makedirs(os.path.join(args.out, "images"), exist_ok=True)
 
     ocr = None
-    if not args.no_ocr:
+    do_ocr = not args.no_ocr
+    if do_ocr and args.workers <= 1:
         from rapidocr_onnxruntime import RapidOCR
         ocr = RapidOCR()
 
@@ -159,6 +202,7 @@ def main():
     cache_file = open(cache_path, "a")
 
     rows = []
+    pending = []  # (row index, key, image) waiting for OCR
     t0 = time.time()
     for path in shard_paths(args):
         table = pq.read_table(path, columns=["language"])
@@ -177,11 +221,9 @@ def main():
                     f.write(image)
             if key in cache:
                 options = cache[key]
-            elif ocr:
-                boxes, _ = ocr(image)
-                options = parse_options(boxes or [])
-                cache[key] = options
-                cache_file.write(json.dumps({"key": key, "options": options}, ensure_ascii=False) + "\n")
+            elif do_ocr:
+                options = {}
+                pending.append((len(rows), key, image))
             else:
                 options = {}
             year = r["id"].split("_")[1]
@@ -198,6 +240,27 @@ def main():
             if len(rows) % 100 == 0:
                 rate = len(rows) / (time.time() - t0)
                 print(f"  {len(rows)} rows, {rate:.1f} rows/s", flush=True)
+
+    if pending:
+        print(f"Reading options from {len(pending)} images with {args.workers} worker(s)...", flush=True)
+        t1 = time.time()
+        try:
+            for done, ((index, key, _image), boxes) in enumerate(
+                    zip(pending, ocr_boxes(pending, ocr, args.workers)), 1):
+                options = parse_options(boxes or [])
+                cache[key] = options
+                rows[index]["options"] = options
+                cache_file.write(json.dumps({"key": key, "options": options}, ensure_ascii=False) + "\n")
+                if done % 50 == 0:
+                    cache_file.flush()
+                    rate = done / (time.time() - t1)
+                    print(f"  {done}/{len(pending)} images OCR'd, {rate:.1f}/s", flush=True)
+        except KeyboardInterrupt:
+            print("\nInterrupted. The OCR cache keeps what has been read; run the same command to resume.",
+                  flush=True)
+            raise
+        finally:
+            cache_file.flush()
     cache_file.close()
 
     for split in ("train", "val"):

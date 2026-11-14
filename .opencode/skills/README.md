@@ -1,6 +1,6 @@
-# Skills for Claude
+# Skills for Claude and OpenCode
 
-These skills teach Claude how the Arduino UNO Q, this repository, and the Math on the Edge datathon work. With them, Claude gives you commands and code that run on the board, inside its limits.
+These skills teach coding agents how the Arduino UNO Q, this repository, and the Math on the Edge datathon work. With them, the agent gives you commands and code that run on the board, inside its limits.
 
 | Skill | Use it to |
 | --- | --- |
@@ -9,7 +9,11 @@ These skills teach Claude how the Arduino UNO Q, this repository, and the Math o
 | [`unoq-hardware-ui`](unoq-hardware-ui/SKILL.md) | Build an App Lab app with a web page and the LED matrix, connected to the copilot |
 | [`publish-project`](publish-project/SKILL.md) | Prepare your public GitHub repository and your Arduino Project Hub write-up |
 
-Each skill is a folder with a `SKILL.md` file: a short description that tells Claude when to use it, then the instructions.
+Each skill is a folder with a `SKILL.md` file: a short description that tells the agent when to use it, then the instructions.
+
+## Use them with OpenCode
+
+OpenCode discovers `.opencode/skills/` in the repository automatically: start `opencode` in the repository and the skills are advertised by their descriptions. You can also ask for one by name, such as `@m3kang-copilot`.
 
 ## Use them with Claude Code
 
@@ -17,7 +21,7 @@ On your laptop, from your clone of the repository:
 
 ```bash
 mkdir -p .claude
-ln -s ../.skills .claude/skills
+ln -s ../.opencode/skills .claude/skills
 ```
 
 Start `claude` in the same folder. It loads a skill when your request fits its description, or you can ask for one by name:

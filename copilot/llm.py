@@ -1,4 +1,6 @@
 """Ask the small language model for one letter, A to E."""
+import time
+
 from .config import CONFIG
 from .client import post
 
@@ -50,3 +52,42 @@ def answer_letter(problem, examples=(), timeout=60, image_b64=None, url=URL):
     }, timeout=timeout)
     letter = response["choices"][0]["message"]["content"].strip()
     return letter, response.get("timings", {})
+
+
+def letter_logprobs(problem, examples=(), timeout=60, image_b64=None, url=URL):
+    """Return ({letter: logprob}, timings) for all five letters.
+
+    Uses one request per letter: the grammar forces the token, and the server
+    reports the token's score before the grammar, so the five numbers are the
+    model's real preference over A..E. After the first request the prompt is
+    cached, so the other four read only the last few tokens.
+
+    timeout is a budget for all five requests, not for each one, so a slow
+    server cannot make one problem take five times the limit.
+    """
+    messages = build_messages(problem, examples, image_b64)
+    scores = {}
+    timings = {"prompt_n": 0, "predicted_n": 0}
+    deadline = time.monotonic() + timeout
+    for letter in "ABCDE":
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("no time left for the five letter scores")
+        response = post(url, {
+            "messages": messages,
+            "grammar": f'root ::= "{letter}"',
+            "max_tokens": 1,
+            "temperature": 0,
+            "seed": int(CONFIG["SEED"]),
+            "cache_prompt": True,
+            "logprobs": True,
+        }, timeout=remaining)
+        choice = response["choices"][0]
+        content = (choice.get("logprobs") or {}).get("content") or []
+        if not content:
+            raise RuntimeError("the server returned no logprobs; use llama-server with logprobs support")
+        scores[letter] = content[0]["logprob"]
+        measured = response.get("timings", {})
+        timings["prompt_n"] += measured.get("prompt_n", 0)
+        timings["predicted_n"] += measured.get("predicted_n", 0)
+    return scores, timings
