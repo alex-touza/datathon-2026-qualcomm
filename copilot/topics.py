@@ -25,9 +25,9 @@ TOPICS = {
         ["probability", "chance", "at random", "outcome", "probabilitat", "a l'atzar"],
         "Probability: list every equally likely outcome, then count the ones you want."),
     "geometry": (
-        ["area", "perimeter", "triangle", "square", "rectangle", "circle", "angle",
+        ["area", "perimeter", "triangle", "triangular", "square", "rectangle", "circle", "angle",
          "diagonal", "cube", "volume", "radius", "diameter", "àrea", "perímetre",
-         "triangle", "quadrat", "rectangle", "cercle", "angle", "cub", "volum", "radi"],
+         "triangle", "triangular", "quadrat", "rectangle", "cercle", "angle", "cub", "volum", "radi"],
         "Geometry: draw the figure and write the one formula you need next to the "
         "quantities you already know."),
     "fractions": (
@@ -53,11 +53,11 @@ TOPICS = {
          "setmanes", "mesos", "anys"],
         "Time: count the whole units first, then the leftover ones."),
     "statistics": (
-        ["average", "mean", "median", "in total", "altogether", "mitjana", "en total"],
+        ["average", "mean", "median", "mitjana"],
         "Statistics: add all the values, then divide by how many there are."),
     "rate": (
-        ["per hour", "per minute", "per day", "speed", "ratio", "proportion", "each",
-         "every", "per hora", "velocitat", "proporci", "cada"],
+        ["per hour", "per minute", "per day", "per second", "rate", "speed", "ratio",
+         "proportion", "per hora", "per minut", "per dia", "velocitat", "proporci"],
         "Rate: find the amount for one unit first, then multiply by how many you need."),
     "algebra": (
         ["solve for", "value of x", "equation", "unknown", "express", "equaci",

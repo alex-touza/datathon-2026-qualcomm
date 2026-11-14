@@ -20,6 +20,7 @@
     --warn-bg: #fff6df;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0; padding: 24px 16px 64px;
     background: var(--paper); color: var(--ink);
@@ -191,7 +192,10 @@
     try {
       const response = await fetch("/api/image/" + encodeURIComponent(key), {cache: "no-store"});
       const body = await response.json();
-      if (body && body.data) source = "data:image/png;base64," + body.data;
+      if (body && body.data) {
+        const kind = body.mime || "image/jpeg";
+        source = "data:" + kind + ";base64," + body.data;
+      }
     } catch (error) {
       source = null;
     }

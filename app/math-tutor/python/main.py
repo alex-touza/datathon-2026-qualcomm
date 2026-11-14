@@ -51,7 +51,7 @@ os.chdir(REPO)
 from copilot.client import get  # noqa: E402
 from copilot.config import CONFIG  # noqa: E402
 from copilot.rag import Index  # noqa: E402
-from copilot.tutor import Session, Tutor, summary_line  # noqa: E402
+from copilot.tutor import Session, Tutor, image_mime, summary_line  # noqa: E402
 
 INDEX = os.path.join(REPO, "data", "index.db")
 IMAGES = os.path.join(REPO, "data", "images")
@@ -260,7 +260,8 @@ def api_image(key):
     if key not in TUTOR.by_key or not os.path.exists(path):
         return {"error": "no image"}
     with open(path, "rb") as handle:
-        return {"data": base64.b64encode(handle.read()).decode()}
+        raw = handle.read()
+        return {"data": base64.b64encode(raw).decode(), "mime": image_mime(raw)}
 
 
 UI = WebUI()

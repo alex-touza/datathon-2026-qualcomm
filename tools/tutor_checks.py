@@ -115,6 +115,9 @@ def main():
     print("\nTopics")
     check("counting", topics.classify("In how many ways can three students sit?")["topic"] == "counting")
     check("geometry", topics.classify(PROBLEM["text"])["topic"] == "geometry")
+    check("every/each is not automatically rate",
+          topics.classify("Alicia has 6 triangular tiles. Between every two tiles she puts "
+                          "a square, and each square gets a round tile.")["topic"] == "geometry")
     check("no substring trap: candies is not time",
           topics.classify("Marc has 9 candies and 17 sweets.")["topic"] != "time")
 

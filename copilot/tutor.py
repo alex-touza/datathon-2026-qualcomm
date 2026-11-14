@@ -34,7 +34,7 @@ from .embed import embed
 from .llm import format_problem
 
 LETTERS = "ABCDE"
-MAX_LEVEL = 6          # M3Kang levels run 0 (easiest) to 6 (hardest)
+MAX_LEVEL = 7          # M3Kang levels run 0 (easiest) to 7 (hardest)
 SEED = int(CONFIG["SEED"])
 
 # --------------------------------------------------------------------------
@@ -628,6 +628,11 @@ class Tutor:
 
 def _has_image(images, key):
     return os.path.exists(os.path.join(images, key + ".png"))
+
+
+def image_mime(data):
+    """The real image type: M3Kang's .png files are JPEG bytes."""
+    return "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg"
 
 
 # --------------------------------------------------------------------------

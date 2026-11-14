@@ -32,7 +32,7 @@ def build_messages(problem, examples=(), image_b64=None):
         messages.append({"role": "assistant", "content": ex["label"]})
     text = format_problem(problem, sees_image=bool(image_b64)) + "\nAnswer:"
     if image_b64:
-        content = [{"type": "image_url", "image_url": {"url": "data:image/png;base64," + image_b64}},
+        content = [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image_b64}},
                    {"type": "text", "text": text}]
     else:
         content = text

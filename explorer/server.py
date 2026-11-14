@@ -179,7 +179,7 @@ def make_handler(app):
                 file = os.path.join(app.images, key + ".png")
                 if key in app.image_keys and os.path.exists(file):
                     with open(file, "rb") as f:
-                        return self.send(200, f.read(), "image/png")
+                        return self.send(200, f.read(), "image/jpeg")
             return self.send(404, {"error": "not found"})
 
         def do_POST(self):

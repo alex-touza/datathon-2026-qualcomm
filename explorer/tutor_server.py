@@ -27,7 +27,7 @@ sys.path.insert(0, ROOT)
 from copilot.client import get  # noqa: E402
 from copilot.config import CONFIG  # noqa: E402
 from copilot.rag import Index  # noqa: E402
-from copilot.tutor import Session, Tutor, summary_line  # noqa: E402
+from copilot.tutor import Session, Tutor, image_mime, summary_line  # noqa: E402
 
 PAGE = os.path.join(ROOT, "app", "math-tutor", "assets", "index.html")
 LETTERS = set("ABCDE")
@@ -117,7 +117,9 @@ def make_handler(app):
                     file = os.path.join(app.images, key + ".png")
                     if key in app.image_keys and os.path.exists(file):
                         with open(file, "rb") as handle:
-                            return self.send(200, {"data": base64.b64encode(handle.read()).decode()})
+                            raw = handle.read()
+                            return self.send(200, {"data": base64.b64encode(raw).decode(),
+                                                   "mime": image_mime(raw)})
                     return self.send(404, {"error": "no image"})
                 if parts[:2] == ["api", "first"]:
                     level = int(parts[2]) if len(parts) > 2 else 0
@@ -151,7 +153,8 @@ def make_handler(app):
                     file = os.path.join(app.images, key + ".png")
                     if key in app.image_keys and os.path.exists(file):
                         with open(file, "rb") as handle:
-                            return self.send(200, handle.read(), "image/png")
+                            raw = handle.read()
+                            return self.send(200, raw, image_mime(raw))
                 return self.send(404, {"error": "not found"})
             except urllib.error.URLError as error:
                 return self.send(502, {"error": f"model server: {error}"})
