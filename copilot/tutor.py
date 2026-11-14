@@ -549,14 +549,16 @@ class Tutor:
 
     # -- adaptive practice ---------------------------------------------------
 
-    def first_problem(self, level=1, language="eng", seed=SEED):
+    def first_problem(self, level=1, language="eng", seed=None):
         pool = [p for _k, p, _v in self.rows
                 if p.get("level") == level and p.get("language") == language]
         if not pool:
             pool = [p for _k, p, _v in self.rows if p.get("level") == level]
         if not pool:
             pool = [p for _k, p, _v in self.rows]
-        random.Random(seed).shuffle(pool)
+        # The official run uses SEED; the tutor wants a different topic per
+        # session, otherwise strict same-topic practice always starts geometry.
+        (random.Random(seed) if seed is not None else random.Random()).shuffle(pool)
         return pool[0] if pool else None
 
     def next_problem(self, problem, correct, seen_ids=(), prefer_language=None):
