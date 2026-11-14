@@ -226,3 +226,45 @@ El recompte agrupa per `id` perquè les traduccions són el mateix problema.
 A nivell de files, `standard` té 53.541/108.677 (49,3%) visuals i
 `high_quality` en té 19.436/40.617 (47,9%). Les 40.617 parelles
 `(id, idioma)` de `high_quality` també apareixen a `standard`.
+
+## Repetició de 80 problemes M3Kang
+
+Es van excloure els identificadors dels dos pilots anteriors. Amb la llavor
+`20261115`, es van agafar cinc problemes de text i cinc visuals a cadascun
+dels nivells 0–7, sense repetir identificador i alternant els idiomes. Es
+van fer servir les mateixes opcions de RapidOCR per a totes les passades.
+Se'n van obtenir cinc en 32/40 dels problemes de text i 26/40 dels visuals.
+En la passada amb imatge, també es va adjuntar la captura als problemes de
+text, per provar si ajuda a recuperar opcions o fórmules de la captura.
+
+Vegeu la [guia de peticions](GUIA-PETICIONS.md) per als cossos JSON amb text
+i imatge, la procedència de les opcions i el format de resposta.
+
+Per seleccionar els candidats, ajunteu els manifests dels dos pilots antics
+en un fitxer local d'exclusió. Reviseu les captures abans d'exportar-les i
+executeu els models amb `--options ocr`.
+
+```sh
+mkdir -p data/benchmark/repeat
+cat data/benchmark/pilot.jsonl data/benchmark/stratified/pilot.jsonl > data/benchmark/repeat/excluded.jsonl
+python benchmark/stratified.py stage --seed 20261115 --per-kind 5 --per-slot 1 \
+  --exclude data/benchmark/repeat/excluded.jsonl --out data/benchmark/repeat/staging-final
+python benchmark/repeat.py --staging data/benchmark/repeat/staging-final \
+  --out data/benchmark/repeat-reproduced
+```
+
+L'exportador nou conserva els camps `text_only` i `ocr_options_complete` per
+separar la modalitat del problema de si l'OCR n'ha tret les opcions.
+
+En totes quatre passades es van obtenir 80 respostes vàlides dins de 60 s
+i, per tant, també dins de 100 s. Els temps són del Mac.
+
+| Model i entrada | Text del dataset | Visual del dataset | Total | Mediana | P95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Qwen · enunciat + OCR | 7/40 | 14/40 | 21/80 | 0,092 s | 0,121 s |
+| Qwen · enunciat + OCR + captura | 11/40 | 13/40 | 24/80 | 0,213 s | 0,243 s |
+| d1-omni · enunciat + OCR | 7/40 | 9/40 | 16/80 | 0,110 s | 0,169 s |
+| d1-omni · enunciat + OCR + captura | 11/40 | 9/40 | 20/80 | 0,551 s | 2,835 s |
+
+`summarize.py` retorna els encerts i temps globals, per nivell i modalitat,
+i per la combinació nivell/modalitat.

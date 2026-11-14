@@ -47,19 +47,22 @@ def stage(cache, excluded_file, output, seed, per_kind, per_slot):
             key = (row["level"], row["text_only"], row["language"])
             buckets[key].setdefault(row["id"], path)
     picked = []
+    used_ids = set()
     for level in LEVELS:
         for modality, plain in enumerate((True, False)):
             for offset in range(per_kind):
                 slot_number = (level * 2 + modality) * per_kind + offset
                 language = LANGUAGES[slot_number % len(LANGUAGES)]
                 bucket = buckets[level, plain, language]
-                ranked_ids = sorted(bucket, key=lambda problem_id: hashlib.sha256(
-                    f"{seed}|{slot_number}|{problem_id}".encode()
-                ).digest())
+                ranked_ids = sorted((problem_id for problem_id in bucket if problem_id not in used_ids),
+                                    key=lambda problem_id: hashlib.sha256(
+                                        f"{seed}|{slot_number}|{problem_id}".encode()
+                                    ).digest())
                 if len(ranked_ids) < per_slot:
                     raise ValueError(f"Too few candidates for level {level}, slot {slot_number}")
                 for rank, problem_id in enumerate(ranked_ids[:per_slot]):
                     picked.append((slot_number, rank, problem_id, language, bucket[problem_id]))
+                    used_ids.add(problem_id)
     by_shard = defaultdict(set)
     for _, _, problem_id, language, path in picked:
         by_shard[path].add((problem_id, language))

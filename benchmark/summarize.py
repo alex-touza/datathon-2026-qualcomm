@@ -45,6 +45,16 @@ def summarize(records):
         for row in rows:
             groups[str(row.get(field))].append(row)
         result[field] = {name: describe(group) for name, group in sorted(groups.items())}
+    by_level_and_modality = defaultdict(list)
+    for row in rows:
+        kind = row.get("kind")
+        if kind in ("text", "figure", "graphic", "image"):
+            modality = "text" if kind == "text" else "image"
+            by_level_and_modality[(row.get("level"), modality)].append(row)
+    result["level_and_modality"] = {
+        f"{level}/{modality}": describe(group)
+        for (level, modality), group in sorted(by_level_and_modality.items(), key=lambda entry: str(entry[0]))
+    }
     return result
 
 
