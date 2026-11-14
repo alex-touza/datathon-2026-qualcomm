@@ -1102,7 +1102,7 @@ Then write down, in a few lines: the idea, the number you'll measure, and your f
 
 ## Step 14: Implement the idea and prepare the presentation
 
-### 14.1 Work with Claude and the skills in this repository
+### 14.1 Work with Claude or OpenCode, and the skills in this repository
 
 The [`.opencode/skills`](.opencode/skills) folder holds skills for Claude and OpenCode: instructions that teach it how this board, this code, and this datathon work, so it gives you commands and code that run on the UNO Q.
 
@@ -1122,7 +1122,7 @@ ln -s ../.opencode/skills .claude/skills
 
 Claude Code finds them on its own when they fit your request, or you can ask for one by name: "Use the m3kang-copilot skill to add a hint ladder." See [.opencode/skills/README.md](.opencode/skills/README.md) for other ways to use them.
 
-Claude can help you write code, but you're the ones who decide and measure. Run every change on the board, and check the numbers yourself.
+OpenCode discovers the same folder automatically. The agent can help you write code, but you're the ones who decide and measure. Run every change on the board, and check the numbers yourself.
 
 ### 14.2 Change one thing at a time, and measure it
 

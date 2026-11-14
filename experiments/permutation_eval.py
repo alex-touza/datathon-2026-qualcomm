@@ -20,6 +20,7 @@ import math
 import os
 import random
 import statistics
+import subprocess
 import sys
 import time
 from collections import Counter, defaultdict
@@ -102,6 +103,30 @@ def mcnemar_exact(single, better, rows):
         return b, c, 1.0
     tail = sum(math.comb(n, i) for i in range(min(b, c) + 1))
     return b, c, min(1.0, 2 * tail / 2 ** n)
+
+
+def git_commit():
+    try:
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
+                                       stderr=subprocess.DEVNULL, text=True).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+
+
+def log_ablation(stamp, name, args, rows, correct, seconds):
+    """Add one line per strategy to results/ablations.csv, like eval.py does."""
+    path = "results/ablations.csv"
+    new = not os.path.exists(path)
+    with open(path, "a", newline="") as f:
+        writer = csv.writer(f)
+        if new:
+            writer.writerow(["time", "name", "commit", "input", "languages", "n", "rag_k",
+                             "accuracy", "mean_s", "worst_s", "over_limit"])
+        writer.writerow([stamp, name, git_commit(), args.input, args.languages or "all",
+                         len(rows), 0, f"{100 * sum(r[correct] for r in rows) / len(rows):.1f}",
+                         f"{statistics.mean(r[seconds] for r in rows):.1f}",
+                         f"{max(r[seconds] for r in rows):.1f}",
+                         sum(r[seconds] > TIME_LIMIT for r in rows)])
 
 
 def main():
@@ -212,6 +237,9 @@ def main():
         table(title, groups)
 
     print(f"\nDetails: {path}")
+    log_ablation(stamp, f"{args.name}-single", args, rows, "correct_single", "seconds_single")
+    log_ablation(stamp, f"{args.name}-mean2", args, rows, "correct_mean2", "seconds_mean2")
+    print("Ablation log: results/ablations.csv")
 
 
 if __name__ == "__main__":
