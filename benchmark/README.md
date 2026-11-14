@@ -201,3 +201,28 @@ La regla de la mediana encerta 9/96 en aquesta mostra. En les 48 entrades
 amb gràfic, Jev passa de 3/48 sense imatge a 45/48 amb imatge. En les 48
 entrades només de text, encerta 41/48 en cada passada. Els sis modes han
 retornat respostes vàlides per a totes les entrades.
+
+## Distribució real del dataset
+
+Executeu `python benchmark/distribution.py` amb PyArrow i els 14 Parquet del
+snapshot fixat. El programa carrega quatre columnes de metadades a SQLite
+local i executa [les consultes](distribution.sql). No llegeix la columna d'imatge.
+
+| Nivell | Només text | Amb figura o opcions gràfiques | Problemes únics |
+| --- | ---: | ---: | ---: |
+| 0 | 29 | 113 | 142 |
+| 1 | 27 | 79 | 106 |
+| 2 | 46 | 100 | 146 |
+| 3 | 60 | 63 | 123 |
+| 4 | 157 | 182 | 339 |
+| 5 | 170 | 126 | 296 |
+| 6 | 161 | 144 | 305 |
+| 7 | 161 | 129 | 290 |
+| Total | 811 | 936 | 1.747 |
+
+`text_only` indica si el problema es pot presentar sense figura. Les files de
+text també tenen una captura amb les opcions, que es pot utilitzar per fer OCR.
+El recompte agrupa per `id` perquè les traduccions són el mateix problema.
+A nivell de files, `standard` té 53.541/108.677 (49,3%) visuals i
+`high_quality` en té 19.436/40.617 (47,9%). Les 40.617 parelles
+`(id, idioma)` de `high_quality` també apareixen a `standard`.
