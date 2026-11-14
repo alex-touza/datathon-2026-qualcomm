@@ -15,8 +15,12 @@ if [ ! -d "$LLAMA_CPP_DIR/.git" ]; then
   git init -q "$LLAMA_CPP_DIR"
   git -C "$LLAMA_CPP_DIR" remote add origin "$LLAMA_CPP_REPO"
 fi
-git -C "$LLAMA_CPP_DIR" fetch --depth 1 origin "$LLAMA_CPP_REF"
-git -C "$LLAMA_CPP_DIR" checkout -q --detach FETCH_HEAD
+# A pre-staged copy at the right commit needs no network.
+current="$(git -C "$LLAMA_CPP_DIR" rev-parse HEAD 2>/dev/null || true)"
+if [ "$current" != "$LLAMA_CPP_REF" ]; then
+  git -C "$LLAMA_CPP_DIR" fetch --depth 1 origin "$LLAMA_CPP_REF"
+  git -C "$LLAMA_CPP_DIR" checkout -q --detach FETCH_HEAD
+fi
 ok "source at $(git -C "$LLAMA_CPP_DIR" rev-parse --short HEAD)"
 
 step "Configuring (GGML_NATIVE uses the NEON instructions of the Cortex-A53)"
