@@ -99,11 +99,14 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - Permutation averaging over option orders: 23.1% → 22.4% full. Dead end.
 - Qwen2.5-Math-1.5B Q4: 16% on 50 (severe A bias). Qwen3.5-2B Q4: 22% on 50 but **22.1% full 562**, below the 23.1% baseline; rejected.
 - Qwen2.5-3B Q4: **24.6% full 562** (p=0.64), **28.3% with options** (p=0.08), 18.8% without. A 3B-with-options / `D`-otherwise rule gives 27.4% (p=0.14) — not established. **On the board it timed out on 6/10 problems (median 57.1 s), so it is not deployable.**
+- Laya multilingual zero-shot: **19.2%** on the 339 val-with-options (0.8B: 21.8%); near chance, so fine-tuning is required. It is tiny and fast (~0.02 s/problem on GPU, 322M), making it a viable fine-tune/deploy base.
 - Treat `status=timeout` as a failure, not an answer: the `D` fallback inflates apparent accuracy. A model is only admissible if a board run has zero timeouts and comfortable median latency.
 - Simple letter/position debiasing does not move accuracy; the content signal is the bottleneck. Partial running accuracy drifts; report the final full-set number and McNemar, not a 50-problem delta or an early subset.
 
 ## Repo quirks
 
+- Laya experiments use `.venv-laya` (Python 3.12 + CUDA torch). Keep the main `.venv` for data prep; do not install Laya there.
+- Laya's newer runtime advertises image input (`laya[vision]` / `vega`); untested on our data. OCR remains the source of option text for teaching and hint checks.
 - `config.env` is parsed by both bash (`board/common.sh`) and Python (`copilot/config.py`); Python environment variables override. Bash expands `~`.
 - `.opencode/skills/<id>/SKILL.md` is the discovery path (not `.opencode/.skills`). Load skills by ID with the skill tool.
 - `.idea/` is tracked from the initial commit; avoid adding IDE noise. `results/` and `data/` are gitignored.
