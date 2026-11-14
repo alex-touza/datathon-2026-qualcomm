@@ -49,6 +49,7 @@ def parse_args():
     parser.add_argument("--input", default="data/val.jsonl", help="problems to measure on")
     parser.add_argument("--corpus", default="data/train.jsonl", help="problems the index is built from")
     parser.add_argument("--index", default="data/index.db")
+    parser.add_argument("--solutions", default="data/explanations.db")
     parser.add_argument("--steps", type=int, default=16, help="steps per simulated student")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fake", action="store_true", help="use tools/fake_servers.py, not the models")
@@ -233,7 +234,8 @@ def main():
     profile_path = os.path.join(RESULTS, f"tutor-profile-{args.name}.db")
     if os.path.exists(profile_path):
         os.remove(profile_path)
-    tutor = Tutor(index, profile_path=profile_path, llm_timeout=25.0)
+    tutor = Tutor(index, profile_path=profile_path, llm_timeout=25.0,
+                  solutions_path=args.solutions)
 
     rungs = [1, 2] if args.no_llm else [1, 2, 3]
     print(f"\nRungs {rungs} on {len(problems)} problems from {args.input}"

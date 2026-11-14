@@ -363,7 +363,8 @@ class Tutor:
     has a label and an embedding, and no validation problem is spent on practice.
     """
 
-    def __init__(self, index, profile_path=None, images=None, llm_timeout=20.0):
+    def __init__(self, index, profile_path=None, images=None, llm_timeout=20.0,
+                 solutions_path=None):
         self.rows = list(index.rows)
         self.by_key = {key_of(p): p for _key, p, _vec in self.rows}
         self.twin = {p["id"]: p for _key, p, _vec in self.rows
@@ -372,7 +373,24 @@ class Tutor:
         self.profile = Profile(profile_path) if profile_path else None
         self.images = images
         self.llm_timeout = llm_timeout
+        self.solutions = self._load_solutions(
+            solutions_path or CONFIG.get("SOLUTIONS_DB", "data/explanations.db"))
         self._rank_cache = {}
+
+    @staticmethod
+    def _load_solutions(path):
+        """Verified precomputed parts, keyed id|language. Read-only."""
+        if not path or not os.path.exists(path):
+            return {}
+        try:
+            db = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True, timeout=5)
+            rows = list(db.execute(
+                "SELECT key, part1, part2, part3 FROM solutions WHERE verified = 1"))
+            db.close()
+        except sqlite3.Error:
+            return {}
+        return {key.replace("|", "_"): (part1, part2, part3)
+                for key, part1, part2, part3 in rows}
 
     # -- what the page may see ------------------------------------------------
 
@@ -470,6 +488,19 @@ class Tutor:
         """One rung. Returns {"rung", "kind", "text", "status", "seconds", "detail"}."""
         start = time.perf_counter()
         rung = max(1, min(4, int(rung)))
+        cached = self.solutions.get(key_of(problem))
+        if cached:
+            part1, part2, part3 = cached
+            if rung == 1:
+                text = part1
+            elif rung == 2:
+                text = "\n\n".join(part for part in (part1, part2) if part)
+            else:
+                text = "\n\n".join(part for part in (part1, part2, part3) if part)
+            if text.strip():
+                return {"rung": rung, "kind": "solution", "text": text, "status": "ok",
+                        "seconds": round(time.perf_counter() - start, 2),
+                        "detail": {"source": "precomputed", "key": key_of(problem)}}
         if rung == 1:
             found, was_easier = self.easier_neighbour(problem)
             if not found:

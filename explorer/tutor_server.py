@@ -39,6 +39,8 @@ def parse_args():
     parser.add_argument("--index", default="data/index.db", help="retrieval index from build_index.py")
     parser.add_argument("--images", default="data/images", help="problem images")
     parser.add_argument("--profile", default="data/tutor.db", help="where the student profile lives")
+    parser.add_argument("--solutions", default="data/explanations.db",
+                        help="verified three-part solutions DB")
     parser.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to open it to the network")
     parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--level", type=int, default=0)
@@ -58,7 +60,8 @@ class App:
         os.chdir(ROOT)
         if not os.path.exists(args.index):
             sys.exit(f"{args.index} is missing: run build_index.py on the board first.")
-        self.tutor = Tutor(Index(args.index), profile_path=args.profile, images=args.images)
+        self.tutor = Tutor(Index(args.index), profile_path=args.profile, images=args.images,
+                           solutions_path=args.solutions)
         self.session = Session(self.tutor, level=args.level, language=args.language)
         self.images = args.images
         self.image_keys = {key for key in self.tutor.by_key}
@@ -176,7 +179,8 @@ def main():
     args = parse_args()
     app = App(args)
     servers = app.state()["servers"]
-    print(f"Tutor: {len(app.tutor.by_key)} solved problems, level {args.level}, {args.language}")
+    print(f"Tutor: {len(app.tutor.by_key)} solved problems, level {args.level}, {args.language}; "
+          f"{len(app.tutor.solutions)} cached solutions")
     print(f"Servers: language model {'up' if servers['llm'] else 'DOWN'}, "
           f"embeddings {'up' if servers['embed'] else 'DOWN'}")
     print(f"Open http://{args.host}:{args.port} (Ctrl+C to stop)", flush=True)

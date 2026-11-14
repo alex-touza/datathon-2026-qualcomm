@@ -56,11 +56,12 @@ from copilot.tutor import Session, Tutor, image_mime, summary_line  # noqa: E402
 INDEX = os.path.join(REPO, "data", "index.db")
 IMAGES = os.path.join(REPO, "data", "images")
 PROFILE = os.path.join(REPO, "data", "tutor.db")
+SOLUTIONS = os.path.join(REPO, CONFIG.get("SOLUTIONS_DB", "data/explanations.db"))
 
 if not os.path.exists(INDEX):
     raise SystemExit(f"{INDEX} is missing. Run build_index.py on the board first.")
 
-TUTOR = Tutor(Index(INDEX), profile_path=PROFILE, images=IMAGES)
+TUTOR = Tutor(Index(INDEX), profile_path=PROFILE, images=IMAGES, solutions_path=SOLUTIONS)
 SESSION = Session(TUTOR, level=0, language="eng")
 
 ACTION_LOCK = threading.Lock()
@@ -274,5 +275,6 @@ UI.expose_api("GET", "/api/next/{key}", api_next)
 UI.expose_api("GET", "/api/image/{key}", api_image)
 
 show_state_matrix()
-print(f"Tutor ready: {len(TUTOR.by_key)} solved problems, profile {PROFILE}", flush=True)
+print(f"Tutor ready: {len(TUTOR.by_key)} solved problems, "
+      f"{len(TUTOR.solutions)} cached solutions, profile {PROFILE}", flush=True)
 App.run()

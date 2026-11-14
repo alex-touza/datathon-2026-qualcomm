@@ -99,6 +99,7 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 ## Teaching MVP (built; measure, then demo)
 
 - UI: problem + image + options; answer A–E; hint rung; reveal; next; language. One page (`app/math-tutor/assets/index.html`) served by two backends: the App Lab app (port 7000, LED matrix tick/cross/level) and `explorer/tutor_server.py` (port 8010, no matrix). Buttons only, no chat input.
+- Precomputed solutions: verified rows in `data/explanations.db` drive hints as part1, part1+part2, then all three parts. Reveal is answer-only. Missing rows use the fallback ladder below. Generate with `tools/generate_solutions.py`; never commit the DB.
 - Rung 1: easier solved neighbour from the index (`level < current`, same topic and language only; at level 0, same-level same-topic; English text by `id` for Catalan). If no same-topic example exists, use the method hint. Rungs 1–2 cost well under a second.
 - Rung 2: method/topic from `copilot/topics.py` + what the neighbours share; no model.
 - Rung 3: one short 0.8B hint; rejected in code if it contains the correct value, a number word for it ("eighty-one"), or the correct letter next to "answer"; falls back to rung 2 with `status=rejected` and keeps the raw text for the leak audit.
