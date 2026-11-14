@@ -1160,6 +1160,70 @@ Check two things early:
 - **The app can reach the models.** Call `http://127.0.0.1:8081/health` from `main.py` before you build on it.
 - **There's enough RAM.** App Lab and the model servers share 3.6 GB. Watch `free -m` while everything runs.
 
+#### The tutor in this repository (our build)
+
+The teaching half is built: a hint ladder, an adaptive trainer, a rule-based
+diagnosis of a wrong option, and tick / cross / level on the LED matrix. The
+scoring run is untouched; `predict.py` never imports the tutor.
+
+| File | What it does |
+| --- | --- |
+| `copilot/tutor.py` | `Tutor`, `Session`, the leak check, the distractor diagnosis, the SQLite profile |
+| `copilot/topics.py` | A short keyword taxonomy (English and Catalan) for rung 2 and for practice |
+| `app/math-tutor/` | App Lab app: the page, the API, the LED matrix |
+| `explorer/tutor_server.py` | The same page and API with no App Lab, standard library only |
+| `tools/tutor_measure.py` | Latency per rung, hint leak rate, simulated student paths |
+| `tools/tutor_checks.py` | About a second: the leak check, the diagnosis, the session rules |
+| `tools/fake_servers.py` | Fake model servers, to test the loop on a laptop with no models |
+
+The ladder is the one from 13.2, with the checks it needs:
+
+1. **A similar solved problem** from the index, at a lower level, in the student's language.
+   At level 0 there is nothing easier, so the nearest solved problem at the same level is used.
+2. **The method**, from the keyword taxonomy plus what the nearest neighbours have in common.
+   No model.
+3. **One sentence from the 0.8B model.** Checked in code first: if the hint contains the
+   correct option's value, a spelling of it ("eighty-one"), or the correct letter next to
+   "answer", it is thrown away and rung 2 is shown instead.
+4. **The solution**, only when the student presses the button twice.
+
+There is no free-form chat. The page has buttons: a letter, the next rung, reveal, next,
+restart. The answer is checked against M3Kang's own `label`, never against the model. A
+wrong option is diagnosed by comparing it with the correct one (half, double, a factor of
+ten, digits swapped, copied from the text, one step short) and the page shows *what to
+check*, never the answer. The diagnosis is a hypothesis about the option, not a label of
+the student. The profile, with topics and levels, stays in `data/tutor.db` on the board.
+
+After an answer the next problem is picked without a model: right, a neighbour one level
+up; wrong, the same topic one level down. If that level is missing, the nearest level in
+the direction of travel is used, so a right answer never sends the student backwards.
+
+Run it:
+
+```bash
+python3 explorer/tutor_server.py --host 0.0.0.0          # page on port 8010, no matrix
+./board/06_install_app.sh --start                        # App Lab app on port 7000, with the matrix
+```
+
+Measure it on the board, not on a laptop:
+
+```bash
+python3 tools/tutor_checks.py                            # the promises in code, about a second
+python3 tools/tutor_measure.py --limit 20 --name ladder-v1
+python3 tools/tutor_measure.py --limit 20 --name ladder-nollm --no-llm
+```
+
+`tutor_measure.py` reports, for 20 validation problems: mean, median, p95 and worst
+seconds per rung; how often the model's own hint leaked (and how often the tutor would
+have shown it, which must be zero); and four simulated students, one always right, one
+right up to level 3, one right up to level 1, one always wrong, walking 16 adaptive steps
+each. Read the level path, the share of steps that stay on topic, and the settled level.
+It writes `results/tutor-measure-<name>.json`, `results/tutor-hints-<name>.json` for
+judging ten hints by hand, and a line per rung in `results/tutor-measure.csv`.
+
+`--fake` swaps in `tools/fake_servers.py`. Use it to check the plumbing with no models;
+its latency and hint texts mean nothing, so never quote a `--fake` number.
+
 ### 14.5 Prepare the demo and the pitch
 
 You have 3 minutes, with the board. A structure that works:

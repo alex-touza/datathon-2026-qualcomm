@@ -25,13 +25,14 @@ On this workstation adb is at `~/.local/opt/platform-tools/adb`; SSH is the alte
 
 ## Current direction (handoff)
 
-- **50% Reasoning + 50% Teaching**; the teaching half is jury-assessed and still unbuilt. Do not optimize only the hidden test.
+- **50% Reasoning + 50% Teaching**; the teaching half is jury-assessed. Do not optimize only the hidden test.
 - Off-the-shelf model swaps are exhausted: no tested model both beats 23.1% significantly and fits the board. Do not start another model download (see Measured results).
-- Primary work is the teaching MVP in `copilot/tutor.py` plus a browser UI. Keep `predict.py` at the 0.8B baseline and untouched.
+- Teaching MVP is **built**: `copilot/tutor.py` (ladder, adaptive next, distractor diagnosis, SQLite profile), `copilot/topics.py`, the page in `app/math-tutor/assets/index.html`, two backends (`app/math-tutor/python/main.py` with the LED matrix, `explorer/tutor_server.py` without), and the measurement tools in `tools/`. `predict.py` is untouched.
+- Next work is **measuring on the board** (`tools/tutor_measure.py --limit 20`) and reporting per-rung latency, the hint leak rate, the simulated student paths, plus ten hand-judged hints from `results/tutor-hints-*.json`. Then the jury demo script.
 - Board is operational: `math-llm` (0.8B) and `math-embed` active; data/index/images present. 3B, Jev-Vision and OneJev are experiments, not deployed.
 - Reuse teammate work: `laptop/repair_options.py` (OCR crop recovery/audit), `experiments/mcnemar.py` (significance), `Problemes amb calma.html` (uploaded on main).
 - `jaume/` is a local, gitignored M3Kang copy; it will not be in a fresh clone. Do not commit it.
-- No free-form chat is required: use buttons and hints. The LLM is optional and only for one short, code-checked hint.
+- No free-form chat: buttons only (letter, rung, reveal, next, restart). The 0.8B model is used for exactly one short hint (rung 3), always leak-checked in code before it is shown, and never for grading or for picking the next problem. Misconception diagnosis is rule-based, from the distractors, not from the model.
 
 ## Commands
 
@@ -95,16 +96,17 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 - `board/`: setup scripts + systemd templates rendered from `config.env`; `laptop/`: data prep + local servers; `experiments/`: offline experiments.
 - Keep teaching features in `copilot/tutor.py`, never in `predict.py`.
 
-## Teaching MVP (next)
+## Teaching MVP (built; measure, then demo)
 
-- UI: problem + image + options; answer A–E; hint button; next problem. Browser served by the board; LED matrix tick/cross/level when App Lab is ready.
-- Rung 1: easier solved neighbour from the index (`level < current`; use the English text by `id` for Catalan).
-- Rung 2: method/topic from a small keyword taxonomy + neighbours; no LLM.
-- Rung 3: one short 0.8B hint; reject it in code if it contains the correct option value or a standalone correct letter; fall back to rung 2.
-- Rung 4: reveal the correct option only on explicit request.
-- Adaptive next: right → neighbour one level up; wrong → same embedding neighbourhood one level down. Keep the profile in SQLite on the board.
-- Measure: latency per rung, leak rate on 20 problems, simulated-student path, 10 hand-judged hints.
-- Optional cheap `predict.py` rule: if `options` is empty, answer `D` (26.0% on that subset vs 25.1% for the 0.8B).
+- UI: problem + image + options; answer A–E; hint rung; reveal; next; language. One page (`app/math-tutor/assets/index.html`) served by two backends: the App Lab app (port 7000, LED matrix tick/cross/level) and `explorer/tutor_server.py` (port 8010, no matrix). Buttons only, no chat input.
+- Rung 1: easier solved neighbour from the index (`level < current`, same language and topic preferred; nearest same-level example at level 0; English text by `id` for Catalan). Rungs 1–2 cost well under a second.
+- Rung 2: method/topic from `copilot/topics.py` + what the neighbours share; no model.
+- Rung 3: one short 0.8B hint; rejected in code if it contains the correct value, a number word for it ("eighty-one"), or the correct letter next to "answer"; falls back to rung 2 with `status=rejected` and keeps the raw text for the leak audit.
+- Rung 4: reveal only after a second, explicit press.
+- Diagnosis: rule-based from the distractor vs the label (unit, sign, digit swap, half, double, factor of ten, off by one, copied from the text, one step short). Shows *what to check*, never the answer; never stored as a label of the student.
+- Adaptive next: right → neighbour one level up; wrong → same topic one level down; nearest level in the direction of travel if that level is missing. `data/tutor.db` holds attempts and per-topic counts. No model in the loop.
+- Measure: `python3 tools/tutor_checks.py` (about a second) then `python3 tools/tutor_measure.py --limit 20 --name <name>` on the board; reports latency per rung, raw vs shipped leak rate, four simulated student paths, and dumps ten hints for hand judging. `--fake` is plumbing only; never quote it.
+- Optional cheap `predict.py` rule: if `options` is empty, answer `D` (26.0% on that subset vs 25.1% for the 0.8B). Not applied.
 
 ## Data and retrieval rules
 

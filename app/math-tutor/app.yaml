@@ -1,0 +1,5 @@
+name: Math tutor
+icon: 🧮
+description: M3Kang hint ladder and adaptive practice, with tick, cross and level on the LED matrix
+bricks:
+  - arduino:web_ui

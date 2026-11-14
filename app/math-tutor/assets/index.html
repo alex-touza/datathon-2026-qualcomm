@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Math tutor</title>
+<style>
+  :root {
+    --ink: #14202e;
+    --muted: #5d6b7a;
+    --line: #d7dee6;
+    --paper: #f6f8fa;
+    --card: #ffffff;
+    --accent: #0b6bcb;
+    --good: #137a3f;
+    --good-bg: #e7f6ec;
+    --bad: #b3261e;
+    --bad-bg: #fdeceb;
+    --warn: #8a5a00;
+    --warn-bg: #fff6df;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 64px;
+    background: var(--paper); color: var(--ink);
+    font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0 10px 0 0; letter-spacing: .2px; }
+  .chip {
+    font-size: 13px; padding: 3px 10px; border-radius: 999px;
+    background: #e8eef5; color: var(--muted); border: 1px solid var(--line);
+  }
+  .chip.strong { background: #eaf2fd; border-color: #bcd6f7; color: var(--accent); font-weight: 600; }
+  .spacer { flex: 1; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 18px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } body { padding: 16px 12px 56px; } }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 20px; box-shadow: 0 1px 2px rgba(20, 32, 46, .04);
+  }
+  .card + .card { margin-top: 14px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+       margin: 0 0 10px; font-weight: 700; }
+  .problem { white-space: pre-wrap; font-size: 19px; line-height: 1.6; }
+  .problem img { display: block; max-width: 100%; margin: 14px 0 4px; border-radius: 10px;
+                 border: 1px solid var(--line); background: #fff; }
+  .options { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
+  .options button {
+    width: 100%; display: flex; gap: 12px; align-items: flex-start; text-align: left;
+    font: inherit; color: inherit; cursor: pointer;
+    background: #fbfcfd; border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; transition: border-color .12s, background .12s;
+  }
+  .options button:hover:not(:disabled) { border-color: #9db9d8; background: #f4f8fd; }
+  .options button:disabled { cursor: default; opacity: 1; }
+  .options .letter {
+    flex: none; width: 30px; height: 30px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700;
+    background: #eaf2fd; color: var(--accent); font-size: 15px;
+  }
+  .options button.chosen { border-color: #8fa6bd; background: #eef2f6; }
+  .options button.right { border-color: var(--good); background: var(--good-bg); }
+  .options button.right .letter { background: var(--good); color: #fff; }
+  .options button.wrong { border-color: var(--bad); background: var(--bad-bg); }
+  .options button.wrong .letter { background: var(--bad); color: #fff; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  button.action {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 11px;
+    padding: 11px 16px; border: 1.5px solid var(--line); background: #fff; color: var(--ink);
+  }
+  button.action.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.action.quiet { color: var(--muted); }
+  button.action:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px;
+          padding: 12px 14px; margin-bottom: 10px; background: #fbfdff; }
+  .hint.model { border-left-color: #7a4bc4; background: #fbf8ff; }
+  .hint.rejected { border-left-color: var(--warn); background: var(--warn-bg); }
+  .hint .rung { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+                color: var(--muted); font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
+  .hint .rung .time { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .hint p { margin: 6px 0 0; white-space: pre-wrap; }
+  .empty { color: var(--muted); font-size: 15px; }
+  .banner { border-radius: 12px; padding: 14px 16px; margin-top: 16px; border: 1px solid; }
+  .banner.good { background: var(--good-bg); border-color: #bfe4cd; }
+  .banner.bad { background: var(--bad-bg); border-color: #f3c9c6; }
+  .banner b { display: block; font-size: 18px; margin-bottom: 4px; }
+  .banner.good b { color: var(--good); }
+  .banner.bad b { color: var(--bad); }
+  .banner .tag { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+                 color: var(--muted); font-weight: 700; }
+  .solution { background: #eef7f0; border-color: #bfe4cd; }
+  .solution p { margin: 0; font-size: 18px; }
+  .footer { margin-top: 26px; color: var(--muted); font-size: 13px; display: flex; gap: 14px;
+            flex-wrap: wrap; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c3ccd6;
+         margin-right: 5px; }
+  .dot.up { background: var(--good); }
+  .dot.down { background: var(--bad); }
+  .busy { display: none; align-items: center; gap: 8px; color: var(--accent); font-weight: 600; }
+  .busy.on { display: inline-flex; }
+  .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
+           animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .flash { min-height: 22px; color: var(--bad); font-weight: 600; font-size: 15px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Math tutor</h1>
+    <span class="chip strong" id="level">level –</span>
+    <span class="chip" id="topic">topic –</span>
+    <span class="chip" id="progress">0 right / 0</span>
+    <span class="spacer"></span>
+    <span class="busy" id="busy"><span class="pulse"></span>thinking…</span>
+    <button class="action quiet" id="lang-en">English</button>
+    <button class="action quiet" id="lang-ca">Català</button>
+  </header>
+
+  <div class="grid">
+    <section>
+      <div class="card">
+        <h2>Problem</h2>
+        <div class="problem" id="text">Loading…</div>
+        <img id="figure" alt="Figure for this problem" hidden>
+        <ul class="options" id="options"></ul>
+        <div id="result-banner"></div>
+        <div class="actions">
+          <button class="action primary" id="next" disabled>Next problem</button>
+          <button class="action" id="reveal" disabled>Show the solution</button>
+        </div>
+        <p class="flash" id="flash"></p>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h2>Help, one rung at a time</h2>
+        <div id="hints"><p class="empty">No hints yet. Try the problem first: help is here when you want it.</p></div>
+        <div class="actions">
+          <button class="action" id="hint" disabled>Ask for a hint</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>What you have practised</h2>
+        <div id="profile"><p class="empty">Nothing yet. Your profile stays on the board.</p></div>
+      </div>
+      <div class="card">
+        <h2>How this works</h2>
+        <p class="empty" id="explain">
+          The board checks your answer against M3Kang's own solution. Hints climb a ladder:
+          a similar solved problem, then the method, then one short sentence from the small
+          model, which is checked in code before you see it. The solution only appears if you ask for it.
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="footer">
+    <span><span class="dot" id="dot-llm"></span>language model</span>
+    <span><span class="dot" id="dot-embed"></span>embeddings</span>
+    <span>Offline. Nothing leaves the board. Keys: A–E answer, H hint, N next.</span>
+  </div>
+</main>
+
+<script>
+  "use strict";
+  const RUNGS = {
+    1: {title: "Rung 1 · a similar solved problem", cls: ""},
+    2: {title: "Rung 2 · the method", cls: ""},
+    3: {title: "Rung 3 · one sentence from the model", cls: "model"},
+    4: {title: "Rung 4 · the solution", cls: ""},
+  };
+  let state = null;
+  let busy = false;
+  let revealArmed = false;
+  let revealTimer = null;
+  const imageCache = new Map();
+
+  const el = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+  /** Images come as base64 over the same JSON API, so one page works on both servers. */
+  async function loadImage(key) {
+    if (imageCache.has(key)) return imageCache.get(key);
+    let source = null;
+    try {
+      const response = await fetch("/api/image/" + encodeURIComponent(key), {cache: "no-store"});
+      const body = await response.json();
+      if (body && body.data) source = "data:image/png;base64," + body.data;
+    } catch (error) {
+      source = null;
+    }
+    imageCache.set(key, source);
+    return source;
+  }
+
+  function flash(message) {
+    el("flash").textContent = message || "";
+  }
+
+  function setBusy(on, label) {
+    busy = on;
+    el("busy").classList.toggle("on", on);
+    el("busy").lastChild.textContent = " " + (label || "thinking…");
+    render();   // disables the buttons while a hint or an answer is in flight
+  }
+
+  async function fetchState() {
+    const response = await fetch("/api/state", {cache: "no-store"});
+    return response.json();
+  }
+
+  /** Run one action, then follow the state until the board is free again. */
+  async function act(path, label) {
+    if (busy) return;
+    flash("");
+    setBusy(true, label || "thinking…");
+    try {
+      const response = await fetch(path, {cache: "no-store"});
+      const body = await response.json();
+      if (body && body.error) flash(body.error);
+      for (let i = 0; i < 120; i += 1) {
+        const next = await fetchState();
+        state = next;
+        if (!next.busy) break;
+        await sleep(400);
+      }
+    } catch (error) {
+      flash("The board did not answer: " + error);
+    } finally {
+      setBusy(false);
+      render();
+    }
+  }
+
+  function renderOptions() {
+    const list = el("options");
+    list.textContent = "";
+    const problem = state.problem;
+    if (!problem) return;
+    const options = problem.options || {};
+    const letters = Object.keys(options).sort();
+    const revealed = state.revealed ? state.revealed_label : null;
+    for (const letter of letters) {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.disabled = busy || state.answered || state.revealed;
+      const mark = document.createElement("span");
+      mark.className = "letter";
+      mark.textContent = letter;
+      const value = document.createElement("span");
+      value.textContent = options[letter];
+      button.append(mark, value);
+      if (state.chosen === letter) {
+        button.classList.add("chosen");
+        if (state.correct === true) button.classList.add("right");
+        if (state.correct === false) button.classList.add("wrong");
+      }
+      if (revealed && letter === revealed) button.classList.add("right");
+      button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, "checking…");
+      item.append(button);
+      list.append(item);
+    }
+    if (!letters.length) {
+      const note = document.createElement("li");
+      note.className = "empty";
+      note.textContent = "The options for this problem are in the picture. Answer A–E once you have read them.";
+      list.append(note);
+      const row = document.createElement("li");
+      row.style.display = "flex";
+      row.style.gap = "8px";
+      row.style.flexWrap = "wrap";
+      for (const letter of ["A", "B", "C", "D", "E"]) {
+        const button = document.createElement("button");
+        button.className = "action";
+        button.textContent = letter;
+        button.disabled = busy || state.answered || state.revealed;
+        button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, "checking…");
+        row.append(button);
+      }
+      list.append(row);
+    }
+  }
+
+  function renderBanner() {
+    const box = el("result-banner");
+    box.textContent = "";
+    if (state.revealed && state.solution) {
+      const banner = document.createElement("div");
+      banner.className = "banner solution";
+      const text = document.createElement("p");
+      text.textContent = state.solution;
+      banner.append(text);
+      box.append(banner);
+      return;
+    }
+    if (!state.answered) return;
+    const banner = document.createElement("div");
+    banner.className = "banner " + (state.correct ? "good" : "bad");
+    const title = document.createElement("b");
+    title.textContent = state.correct ? "Correct" : "Not this one";
+    banner.append(title);
+    if (!state.correct && state.diagnosis) {
+      const tag = document.createElement("div");
+      tag.className = "tag";
+      tag.textContent = state.diagnosis.tag ? "what to check: " + state.diagnosis.tag.replace(/_/g, " ") : "what to check";
+      const text = document.createElement("p");
+      text.textContent = state.diagnosis.text;
+      banner.append(tag, text);
+    }
+    box.append(banner);
+  }
+
+  function renderHints() {
+    const box = el("hints");
+    box.textContent = "";
+    if (state.revealed && state.solution) {
+      // The solution lives in the banner; keep the ladder visible for the jury.
+    }
+    if (!state.hints.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No hints yet. Try the problem first: help is here when you want it.";
+      box.append(empty);
+      return;
+    }
+    for (const hint of state.hints) {
+      const info = RUNGS[hint.rung] || {title: "Rung " + hint.rung, cls: ""};
+      const card = document.createElement("div");
+      card.className = "hint " + (hint.status === "rejected" ? "rejected" : info.cls);
+      const head = document.createElement("div");
+      head.className = "rung";
+      const name = document.createElement("span");
+      name.textContent = info.title;
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = hint.seconds.toFixed(2) + " s";
+      head.append(name, time);
+      const text = document.createElement("p");
+      if (hint.status === "rejected") {
+        text.textContent = "The model's sentence repeated the answer, so the checker replaced it. "
+          + hint.text;
+      } else if (hint.status === "unavailable") {
+        text.textContent = "The model is not answering, so here is the method instead. " + hint.text;
+      } else {
+        text.textContent = hint.text;
+      }
+      card.append(head, text);
+      box.append(card);
+    }
+  }
+
+  function renderProfile() {
+    const box = el("profile");
+    box.textContent = "";
+    const profile = state.profile;
+    if (!profile || !profile.tries) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Nothing yet. Your profile stays on the board.";
+      box.append(empty);
+      return;
+    }
+    const line = document.createElement("p");
+    line.className = "empty";
+    line.textContent = profile.right + " right out of " + profile.tries + " attempts, kept in SQLite on the board.";
+    box.append(line);
+    for (const item of profile.topics.slice(0, 5)) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.style.marginRight = "6px";
+      chip.textContent = item.topic + " · " + item.right + "/" + item.tries;
+      box.append(chip);
+    }
+  }
+
+  function render() {
+    if (!state) return;
+    const problem = state.problem;
+    el("level").textContent = "level " + (state.level === null ? "–" : state.level);
+    el("topic").textContent = state.topic ? "topic · " + state.topic : "topic –";
+    const tries = state.progress.tries;
+    el("progress").textContent = state.progress.right + " right / " + tries;
+    el("text").textContent = problem ? problem.text : "No problem on screen.";
+    const figure = el("figure");
+    if (problem && problem.image) {
+      loadImage(problem.key).then((source) => {
+        if (!source) {
+          figure.hidden = true;
+          return;
+        }
+        figure.src = source;
+        figure.hidden = false;
+      });
+    } else {
+      figure.hidden = true;
+      figure.removeAttribute("src");
+    }
+    renderOptions();
+    renderBanner();
+    renderHints();
+    renderProfile();
+
+    const hintButton = el("hint");
+    hintButton.disabled = busy || !problem || state.answered || state.revealed || !state.next_rung;
+    hintButton.textContent = state.next_rung ? "Ask for hint " + state.next_rung + " of 3" : "No more hints";
+
+    const nextButton = el("next");
+    nextButton.disabled = busy || !problem || !(state.answered || state.revealed);
+    nextButton.textContent = "Next problem";
+
+    const revealButton = el("reveal");
+    revealButton.disabled = busy || !problem || state.revealed;
+    revealButton.textContent = revealArmed ? "Really show the solution?" : "Show the solution";
+
+    el("dot-llm").className = "dot " + (state.servers && state.servers.llm ? "up" : "down");
+    el("dot-embed").className = "dot " + (state.servers && state.servers.embed ? "up" : "down");
+  }
+
+  el("hint").onclick = () => {
+    if (!state || !state.problem) return;
+    act(`/api/hint/${encodeURIComponent(state.problem.key)}`, "looking for a hint…");
+  };
+  el("next").onclick = () => {
+    if (!state || !state.problem) return;
+    revealArmed = false;
+    act(`/api/next/${encodeURIComponent(state.problem.key)}`, "finding the next problem…");
+  };
+  el("reveal").onclick = () => {
+    if (!state || !state.problem || busy) return;
+    if (!revealArmed) {
+      revealArmed = true;
+      render();
+      revealTimer = setTimeout(() => { revealArmed = false; render(); }, 5000);
+      return;
+    }
+    clearTimeout(revealTimer);
+    revealArmed = false;
+    act(`/api/reveal/${encodeURIComponent(state.problem.key)}`, "reading the solution…");
+  };
+  el("lang-en").onclick = () => act("/api/first/0/eng", "loading English problems…");
+  el("lang-ca").onclick = () => act("/api/first/0/cat", "loading Catalan problems…");
+
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const key = event.key.toUpperCase();
+    if ((key === "H") && !el("hint").disabled) el("hint").click();
+    else if ((key === "N") && !el("next").disabled) el("next").click();
+    else if ("ABCDE".includes(key) && state && state.problem && !state.answered && !state.revealed) {
+      act(`/api/answer/${encodeURIComponent(state.problem.key)}/${key}`, "checking…");
+    }
+  });
+
+  (async function start() {
+    state = await fetchState();
+    render();
+    // If a slow hint is already running (page reloaded), keep following it.
+    if (state.busy) {
+      for (let i = 0; i < 120; i += 1) {
+        await sleep(400);
+        state = await fetchState();
+        render();
+        if (!state.busy) break;
+      }
+    }
+  })();
+</script>
+</body>
+</html>
