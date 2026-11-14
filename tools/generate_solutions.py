@@ -63,7 +63,7 @@ def parse_args():
     p.add_argument("--model", default="deepseek-v4-pro")
     p.add_argument("--base-url", default="https://api.deepseek.com")
     p.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
-    p.add_argument("--max-tokens", type=int, default=3000)
+    p.add_argument("--max-tokens", type=int, default=6000)
     p.add_argument("--reasoning-effort", default="low", choices=("low", "high", "max", ""),
                    help="v4 Pro reasoning budget; low is enough for a structured solution")
     p.add_argument("--timeout", type=float, default=120)
