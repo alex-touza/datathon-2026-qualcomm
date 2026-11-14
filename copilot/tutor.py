@@ -606,12 +606,20 @@ class Tutor:
 
         attempts = [
             [pair for pair in same_topic if pair[1].get("level") == target],
+            [pair for pair in pool if pair[1].get("level") == target],
             rank_of(towards(same_topic)),
-            by_distance(same_topic),
+            rank_of(towards(pool)),
+            by_distance(pool),
         ]
         chosen = next((pairs[0] for pairs in attempts if pairs), None)
         if chosen is None:
-            return None
+            fallback = self.first_problem(level=target, language=language)
+            if fallback is None:
+                return None
+            return {"problem": self.public(fallback), "target_level": target,
+                    "topic": topics.classify(fallback.get("text", ""))["topic"],
+                    "reason": "level only, retrieval had no candidates",
+                    "seconds": round(time.perf_counter() - start, 2)}
         score, nxt = chosen
         nxt_topic = topics.classify(nxt.get("text", ""))["topic"]
         if nxt_topic != topic:

@@ -99,12 +99,12 @@ python3 build_index.py --input data/train.jsonl --db data/index.db --only-with-o
 ## Teaching MVP (built; measure, then demo)
 
 - UI: problem + image + options; answer A–E; hint rung; reveal; next; language. One page (`app/math-tutor/assets/index.html`) served by two backends: the App Lab app (port 7000, LED matrix tick/cross/level) and `explorer/tutor_server.py` (port 8010, no matrix). Buttons only, no chat input.
-- Rung 1: easier solved neighbour from the index (`level < current`, same language and topic preferred; nearest same-level example at level 0; English text by `id` for Catalan). Rungs 1–2 cost well under a second.
+- Rung 1: easier solved neighbour from the index (`level < current`, same topic and language only; at level 0, same-level same-topic; English text by `id` for Catalan). If no same-topic example exists, use the method hint. Rungs 1–2 cost well under a second.
 - Rung 2: method/topic from `copilot/topics.py` + what the neighbours share; no model.
 - Rung 3: one short 0.8B hint; rejected in code if it contains the correct value, a number word for it ("eighty-one"), or the correct letter next to "answer"; falls back to rung 2 with `status=rejected` and keeps the raw text for the leak audit.
 - Rung 4: reveal only after a second, explicit press.
 - Diagnosis: rule-based from the distractor vs the label (unit, sign, digit swap, half, double, factor of ten, off by one, copied from the text, one step short). Shows *what to check*, never the answer; never stored as a label of the student.
-- Adaptive next: a session starts from a random problem/topic (so you do not always get geometry), then right → neighbour one level up; wrong → same topic one level down; nearest level in the direction of travel if that level is missing. `data/tutor.db` holds attempts and per-topic counts. No model in the loop.
+- Adaptive next: a session starts from a random problem/topic (so you do not always get geometry), then prefers a same-topic neighbour (right → one level up; wrong → one level down) but falls back to another topic when the current topic has no candidate. `data/tutor.db` holds attempts and per-topic counts. No model in the loop.
 - Measure: `python3 tools/tutor_checks.py` (about a second) then `python3 tools/tutor_measure.py --limit 20 --name <name>` on the board; reports latency per rung, raw vs shipped leak rate, four simulated student paths, and dumps ten hints for hand judging. `--fake` is plumbing only; never quote it.
 - Topic labels are stored per attempt. After changing `copilot/topics.py`, run `python3 tools/relabel_profile.py` and restart the tutor server; otherwise old practice history keeps stale labels.
 - Optional cheap `predict.py` rule: if `options` is empty, answer `D` (26.0% on that subset vs 25.1% for the 0.8B). Not applied.
