@@ -12,7 +12,7 @@ import urllib.error
 
 from .config import CONFIG
 from .decide import choose, compact, confidence
-from .llm import URL, answer_letter
+from .llm import URL, letter_logprobs
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 FALLBACK = CONFIG["FALLBACK_ANSWER"]
@@ -39,9 +39,9 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
             result["examples"] = hits
             result["retrieved"] = ";".join(f"{p['id']}:{s:.2f}" for s, p in hits)
         remaining = time_limit - (time.perf_counter() - start) - MARGIN
-        letter, timings, scores = letter_logprobs(problem, examples, timeout=max(remaining, 1.0),
-                                                image_b64=image_b64, url=llm_url,
-                                                want_probs=True)
+        scores, timings = letter_logprobs(problem, examples, timeout=max(remaining, 1.0),
+                                         image_b64=image_b64, url=llm_url)
+        letter = max(scores, key=scores.get)
         # If the server sent no scores, keep exactly what the model wrote.
         result["answer"] = choose(scores, fallback=letter, alpha=ALPHA) if scores else letter
         result["confidence"] = round(confidence(scores, result["answer"]), 4)
