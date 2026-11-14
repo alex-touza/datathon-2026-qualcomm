@@ -18,7 +18,6 @@ import sys
 
 from copilot.pipeline import solve
 
-
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--input", required=True)

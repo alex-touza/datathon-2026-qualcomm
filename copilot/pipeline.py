@@ -2,17 +2,22 @@
 
 This is the file to change first. predict.py and eval.py both call solve(),
 so whatever you build here is exactly what the official run measures.
+
+It now also asks the model how sure it was, and can lean against the model's
+letter habits. CALIBRATION_ALPHA=0 in config.env keeps the old behaviour.
 """
 import socket
 import time
 import urllib.error
 
 from .config import CONFIG
+from .decide import choose, compact, confidence
 from .llm import URL, answer_letter
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 FALLBACK = CONFIG["FALLBACK_ANSWER"]
 MARGIN = 3.0  # seconds kept free for Python and for writing the answer
+ALPHA = float(CONFIG.get("CALIBRATION_ALPHA") or 0)
 
 
 def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL,
@@ -24,7 +29,8 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
     image_b64 and llm_url send the problem image to a vision server.
     """
     start = time.perf_counter()
-    result = {"answer": FALLBACK, "status": "ok", "prompt_tokens": 0, "retrieved": "", "examples": []}
+    result = {"answer": FALLBACK, "status": "ok", "prompt_tokens": 0, "retrieved": "",
+              "examples": [], "confidence": 0.0, "scores": ""}
     try:
         examples = []
         if index is not None and k > 0:
@@ -33,9 +39,13 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
             result["examples"] = hits
             result["retrieved"] = ";".join(f"{p['id']}:{s:.2f}" for s, p in hits)
         remaining = time_limit - (time.perf_counter() - start) - MARGIN
-        letter, timings = answer_letter(problem, examples, timeout=max(remaining, 1.0),
-                                        image_b64=image_b64, url=llm_url)
-        result["answer"] = letter
+        letter, timings, scores = letter_logprobs(problem, examples, timeout=max(remaining, 1.0),
+                                                image_b64=image_b64, url=llm_url,
+                                                want_probs=True)
+        # If the server sent no scores, keep exactly what the model wrote.
+        result["answer"] = choose(scores, fallback=letter, alpha=ALPHA) if scores else letter
+        result["confidence"] = round(confidence(scores, result["answer"]), 4)
+        result["scores"] = compact(scores)
         result["prompt_tokens"] = timings.get("prompt_n", 0)
     except (socket.timeout, TimeoutError):
         result["status"] = "timeout"
