@@ -268,3 +268,56 @@ i, per tant, també dins de 100 s. Els temps són del Mac.
 
 `summarize.py` retorna els encerts i temps globals, per nivell i modalitat,
 i per la combinació nivell/modalitat.
+
+## Jev en 160 originals per banda de dificultat
+
+`python benchmark/levels.py --out data/benchmark/levels-v1` genera 160
+problemes originals en anglès amb llavor 20261116. A cada banda del 0 al 7
+hi ha deu problemes textuals i deu visuals, i cadascuna de les cinc lletres
+és la correcta dues vegades per grup. La banda és una categoria dissenyada
+per a la prova. Els nivells escolars de M3Kang fan servir una escala pròpia.
+
+| Banda | Text | Imatge |
+| --- | --- | --- |
+| 0 | Sumar i restar quantitats | Comptar cercles i quadrats |
+| 1 | Multiplicar i repartir | Comparar i sumar barres |
+| 2 | Operacions encadenades i perímetre | Àrea i perímetre d'una figura en quadrícula |
+| 3 | Proporcionalitat i fraccions | Multiplicar i sumar valors d'una taula |
+| 4 | Fraccions successives i àrea composta | Distància acumulada i canvi de saldo |
+| 5 | Enters consecutius i percentatges | Camins en quadrícula amb bloquejos |
+| 6 | Codis amb ordre i mínim comú múltiple | Comptar parelles de colors |
+| 7 | Combinatòria i divisibilitat | Rutes de cost mínim i segon mínim |
+
+Cada PNG és original i té 720 × 480 píxels. Els models reben les mateixes
+cinc opcions en totes les passades i la imatge només s'adjunta en el mode
+visió quan la fila la conté. El control de Jev amb només les opcions fa
+servir `options-only.jsonl`, que omet l'enunciat i la imatge.
+
+| Model i entrada | Només text (80) | Casos visuals (80) | Encerts ≤60 s i ≤100 s | Mediana | P95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Jev 1.14 · sense PNG | 67 | 17 | 84/160 | 0,223 s | 0,330 s |
+| Jev 1.14 · amb PNG quan n'hi ha | 69 | 54 | 123/160 | 0,245 s | 0,333 s |
+| Jev 1.14 · només opcions | 18 | 15 | 33/160 | 0,225 s | 0,499 s |
+| Qwen 0.8B · sense PNG | 17 | 19 | 36/160 | 0,086 s | 0,099 s |
+| Qwen 0.8B · amb PNG quan n'hi ha | 17 | 11 | 28/160 | 0,141 s | 0,213 s |
+| d1-omni-600M · sense PNG | 15 | 15 | 30/160 | 0,091 s | 0,145 s |
+| d1-omni-600M · amb PNG quan n'hi ha | 15 | 23 | 38/160 | 0,408 s | 0,834 s |
+
+El temps de Jev inclou la xarxa. Els dos models locals es van executar al Mac
+amb el model carregat. No s'ha mesurat la latència a la UNO Q.
+
+### Jev per nivell i modalitat
+
+Cada cel·la mostra encerts sobre deu. Les files de text es reenvien en el
+segon mode sense PNG. En els casos visuals, el segon mode incorpora la figura.
+
+| Nivell | Text, primera passada | Text, segona passada | Visual sense PNG | Visual amb PNG |
+| ---: | ---: | ---: | ---: | ---: |
+| 0 | 10 | 10 | 1 | 10 |
+| 1 | 10 | 10 | 2 | 10 |
+| 2 | 10 | 10 | 0 | 7 |
+| 3 | 10 | 10 | 4 | 9 |
+| 4 | 4 | 6 | 2 | 7 |
+| 5 | 8 | 8 | 0 | 2 |
+| 6 | 10 | 10 | 4 | 5 |
+| 7 | 5 | 5 | 4 | 4 |
