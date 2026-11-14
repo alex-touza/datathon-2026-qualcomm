@@ -313,7 +313,11 @@
     if (!state.correct && state.diagnosis) {
       const tag = document.createElement("div");
       tag.className = "tag";
-      tag.textContent = state.diagnosis.tag ? "what to check: " + state.diagnosis.tag.replace(/_/g, " ") : "what to check";
+      const tagLabels = {one_step: "a combination of numbers", from_text: "a number from the problem"};
+      const tagText = state.diagnosis.tag
+        ? (tagLabels[state.diagnosis.tag] || state.diagnosis.tag.replace(/_/g, " "))
+        : "the last sentence";
+      tag.textContent = "what to check: " + tagText;
       const text = document.createElement("p");
       text.textContent = state.diagnosis.text;
       banner.append(tag, text);

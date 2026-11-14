@@ -175,8 +175,8 @@ DIAGNOSES = {
     "double": "Your value is twice the size the question asks for. Check which quantity you used.",
     "half": "Your value is half the size the question asks for. Check whether you used all the items.",
     "sign": "The size looks right but the direction is not. Check whether the quantity goes up or down.",
-    "from_text": "That number is in the problem, but it is not the quantity the question asks for.",
-    "one_step": "You may have stopped after one step. Read the last sentence again before you choose.",
+    "from_text": "This number is in the problem, but it is one of the quantities to use, not the quantity the question asks for.",
+    "one_step": "This option is a combination of two numbers from the problem. Check whether the question asks for one more step.",
     "unit": "The number looks plausible but the unit is different. Convert both to the same unit first.",
 }
 
