@@ -20,8 +20,8 @@ REVISION = "02b55d7076f15129e59ab3f94783f32c4b088674"
 LETTERS = "ABCDE"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 os.environ.setdefault("HF_HOME", str(REPO_ROOT / "data/omni-runtime/hf-cache"))
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 
 class Deadline(Exception):
@@ -180,6 +180,8 @@ def main():
                    "correct_new": sum(r["correct"] for r in records),
                    "accuracy_new": sum(r["correct"] for r in records) / len(records) if records else None,
                    "mean_seconds_new": statistics.mean(r["seconds"] for r in records) if records else None,
+                   "correct_within_60_new": sum(r["correct"] and r["within_60"] for r in records),
+                   "correct_within_100_new": sum(r["correct"] and r["within_100"] for r in records),
                    "within_60_new": sum(r["within_60"] for r in records),
                    "within_100_new": sum(r["within_100"] for r in records),
                    "status_counts": {s: sum(r["status"] == s for r in records)

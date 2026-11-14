@@ -79,11 +79,13 @@ Qwen3.5 0.8B Q8_0 amb projector F16 i llama.cpp `b1b770d90` al Mac, sense límit
 | OCR | 13/72 | 13/72 | 0,163 s | 0,314 s |
 | Opcions revisades | 13/72 | 13/72 | 0,162 s | 0,293 s |
 | Opcions revisades i imatge | 16/72 | 16/72 | 0,421 s | 0,551 s |
+| Liquid d1-omni-600M amb imatge (CPU) | 10/72 | 10/72 | 3,851 s | 7,053 s |
 
-La mostra inclou 24 problemes únics, en tres idiomes i vuit nivells. Les traduccions comparteixen etiqueta i les files no són independents. Sempre respondre C aconsegueix 24/72 en aquesta mostra. La passada de visió envia la captura revisada completa. La durada és local al Mac i cal una nova mesura a la placa per validar els terminis del concurs.
+La mostra inclou 24 problemes únics, en tres idiomes i vuit nivells. Les traduccions comparteixen etiqueta i les files no són independents. Sempre respondre C aconsegueix 24/72 en aquesta mostra. Les passades de visió envien la captura revisada completa. Qwen guanya 8 respostes correctes i en perd 5 quan rep la imatge amb les mateixes opcions revisades. La durada és local al Mac i cal una nova mesura a la placa per validar els terminis del concurs.
 
 ```sh
-python3 benchmark/summarize.py data/benchmark/results/qwen-{ocr,reviewed,vision}.jsonl
+python3 benchmark/summarize.py data/benchmark/results/qwen-{ocr,reviewed,vision}.jsonl \
+  data/benchmark/results/omni-pilot-vision.jsonl
 ```
 
 ## Liquid d1-omni-600M local
