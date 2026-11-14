@@ -10,7 +10,18 @@ El pilot utilitza el primer shard `high_quality` de M3Kang, fixat per revisió i
 python benchmark/prepare.py --reviewed data/benchmark/pilot.tsv --out data/benchmark
 ```
 
-El projector correspon a la mateixa revisió que el Qwen de `config.env`. Els SHA-256 dels pesos i del projector es poden comprovar amb `shasum -a 256`.
+El projector correspon a la mateixa revisió que el Qwen de `config.env`.
+Per descarregar-lo i verificar-lo:
+
+```sh
+mkdir -p data/benchmark/runtime
+curl -fL -o data/benchmark/runtime/mmproj.gguf \
+  https://huggingface.co/bartowski/Qwen_Qwen3.5-0.8B-GGUF/resolve/f36b1ea49a332ede8fe5f389bbf5b3575ef71f48/mmproj-Qwen_Qwen3.5-0.8B-f16.gguf
+printf '%s  %s\n' 1dc1351c82e41b48edb55fd6ddfa7ca60fb5a16b3d5abf3ce7054880dd022847 \
+  data/benchmark/runtime/mmproj.gguf | shasum -a 256 -c
+```
+
+Els pesos de Qwen es poden obtenir amb `board/03_download_models.sh`.
 
 ```sh
 llama-server --model "$HOME/models/Qwen_Qwen3.5-0.8B-Q8_0.gguf" \

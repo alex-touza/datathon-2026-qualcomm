@@ -51,13 +51,16 @@ def main():
     images = args.out / "images"
     images.mkdir(parents=True, exist_ok=True)
     rng = random.Random(42)
+    correct_positions = [0, 1, 2, 3, 4] * 2 + [0, 1]
+    rng.shuffle(correct_positions)
     with (args.out / "pilot.jsonl").open("w", encoding="utf-8") as output:
         for index in range(12):
             case = index % 4
             a, b, c = rng.randint(3, 5), rng.randint(4, 8), rng.randint(2, 4)
             count = (a + b, b, a * b - c, a * 4 + c % a)[case]
-            choices = list(range(count - 2, count + 3))
+            choices = [value for value in range(count - 2, count + 3) if value != count]
             rng.shuffle(choices)
+            choices.insert(correct_positions[index], count)
             options = dict(zip("ABCDE", map(str, choices)))
             problem_id = f"original-{index + 1:02d}"
             image = None
