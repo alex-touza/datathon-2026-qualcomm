@@ -27,6 +27,9 @@ def main():
     p.add_argument("--index", default="data/index.db")
     args = p.parse_args()
 
+    # A fresh clone has no results/ directory; the official run should not fail on that.
+    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+
     index = None
     if args.rag:
         if not os.path.exists(args.index):
