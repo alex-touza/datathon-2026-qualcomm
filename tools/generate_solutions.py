@@ -14,6 +14,7 @@ stratified by level. Only training problems with readable options are eligible.
 """
 import argparse
 import base64
+import concurrent.futures
 import csv
 import json
 import math
@@ -68,6 +69,7 @@ def parse_args():
                    help="v4 Pro reasoning budget; low is enough for a structured solution")
     p.add_argument("--timeout", type=float, default=120)
     p.add_argument("--retries", type=int, default=3)
+    p.add_argument("--workers", type=int, default=4, help="parallel cloud requests")
     p.add_argument("--force", action="store_true", help="regenerate rows that already exist")
     p.add_argument("--retry-failed", action="store_true", help="retry rows that exist but are unverified")
     p.add_argument("--include-messy", action="store_true",
@@ -169,9 +171,24 @@ def request_json(args, system, prompt, image_b64=None):
     request = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json",
                                               "Authorization": f"Bearer {key}"})
-    with urllib.request.urlopen(request, timeout=args.timeout) as response:
-        body = json.loads(response.read())
-    return body
+    last = None
+    for attempt in range(max(1, args.retries)):
+        try:
+            with urllib.request.urlopen(request, timeout=args.timeout) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            last = error
+            if error.code in (429, 500, 502, 503, 504) and attempt + 1 < args.retries:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+        except (urllib.error.URLError, TimeoutError) as error:
+            last = error
+            if attempt + 1 < args.retries:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+    raise last
 
 
 def parse_parts(content):
@@ -219,7 +236,7 @@ def main():
             or (args.retry_failed and p["id"] + "|" + p["language"] in failed)]
     print(f"{len(todo)} rows to generate", flush=True)
 
-    for n, problem in enumerate(todo, 1):
+    def work(problem):
         key = problem["id"] + "|" + problem["language"]
         prompt = format_prompt(template, problem)
         image_b64 = None
@@ -238,16 +255,27 @@ def main():
         except Exception as error:  # noqa: BLE001 - record the failure, keep going
             ok, reason = False, f"{type(error).__name__}: {error}"
             parts = parts or {"part1": "", "part2": "", "part3": ""}
-        db.execute(
-            "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (key, problem["id"], problem["language"], problem.get("level"),
-             parts["part1"], parts["part2"], parts["part3"], args.model, args.name,
-             int(ok), "" if ok else reason, time.time()))
-        db.commit()
-        review.append({**problem, "key": key, **parts, "verified": ok, "reason": reason})
-        print(f"[{n}/{len(todo)}] {key}: {'OK' if ok else 'REJECT ' + reason}", flush=True)
-        if not ok and args.stop_on_error:
-            break
+        return {**problem, "problem": problem, "key": key, **parts,
+                "verified": ok, "reason": reason}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        futures = {pool.submit(work, problem): problem for problem in todo}
+        for n, future in enumerate(concurrent.futures.as_completed(futures), 1):
+            row = future.result()
+            problem, key = row["problem"], row["key"]
+            db.execute(
+                "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (key, problem["id"], problem["language"], problem.get("level"),
+                 row["part1"], row["part2"], row["part3"], args.model, args.name,
+                 int(row["verified"]), "" if row["verified"] else row["reason"], time.time()))
+            db.commit()
+            review.append(row)
+            print(f"[{n}/{len(todo)}] {key}: "
+                  f"{'OK' if row['verified'] else 'REJECT ' + row['reason']}", flush=True)
+            if not row["verified"] and args.stop_on_error:
+                for pending in futures:
+                    pending.cancel()
+                break
 
     os.makedirs("results", exist_ok=True)
     review_path = f"results/solutions-review-{args.name}.csv"
