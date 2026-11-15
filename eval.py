@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure accuracy and latency on the board, the way the official run does.
 
-    python3 eval.py --limit 50                    # baseline on 50 validation problems
+    python3 eval.py --limit 50                    # DeepSeek on 50 validation problems
     python3 eval.py --limit 50 --rag 1 --name rag1
     python3 eval.py --languages cat --limit 100
 
@@ -18,8 +18,7 @@ import subprocess
 import time
 from collections import Counter, defaultdict
 
-from copilot.config import CONFIG
-from copilot.pipeline import TIME_LIMIT, solve
+from copilot.exam import FALLBACK, TIME_LIMIT, solve
 
 
 def git_commit():
@@ -47,7 +46,12 @@ def main():
                    help="override CALIBRATION_ALPHA for this run (0 = no correction)")
     p.add_argument("--index", default="data/index.db")
     p.add_argument("--name", default="", help="a label for this experiment in ablations.csv")
+    p.add_argument("--solver", choices=("deepseek", "baseline"),
+                   help="DeepSeek by default; --rag or --alpha selects the legacy baseline")
     args = p.parse_args()
+    solver = args.solver or ("baseline" if args.rag or args.alpha is not None else "deepseek")
+    if solver == "deepseek" and (args.rag or args.alpha is not None):
+        p.error("--rag and --alpha require --solver baseline")
 
     with open(args.input) as f:
         problems = [json.loads(line) for line in f if line.strip()]
@@ -65,7 +69,7 @@ def main():
 
     os.makedirs("results", exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    name = args.name or (f"rag{args.rag}" if args.rag else "baseline")
+    name = args.name or (f"rag{args.rag}" if args.rag else solver)
     detail_path = f"results/eval-{stamp}-{name}.csv"
 
     rows = []
@@ -75,8 +79,8 @@ def main():
                          "correct", "seconds", "status", "prompt_tokens", "retrieved",
                          "confidence", "scores"])
         for n, problem in enumerate(problems, 1):
-            result = solve(problem, index=index, k=args.rag, exclude_id=problem["id"],
-                           alpha=args.alpha)
+            result = solve(problem, input_path=args.input, solver=solver, index=index,
+                           k=args.rag, alpha=args.alpha)
             correct = result["answer"] == problem["label"]
             row = {**problem, **result, "correct": correct, "has_options": bool(problem.get("options"))}
             rows.append(row)
@@ -92,13 +96,15 @@ def main():
 
     hits = [r["correct"] for r in rows]
     seconds = [r["seconds"] for r in rows]
-    floor = sum(r["label"] == CONFIG["FALLBACK_ANSWER"] for r in rows)
+    floor = sum(r["label"] == FALLBACK for r in rows)
     over = sum(s > TIME_LIMIT for s in seconds)
+    if not rows:
+        p.error("no problems matched the input and language filter")
     accuracy = 100 * sum(hits) / len(hits)
 
     print("\n" + "=" * 60)
     print(f"Accuracy: {sum(hits)}/{len(hits)} = {accuracy:.1f}%")
-    print(f"  floor, always {CONFIG['FALLBACK_ANSWER']}: {100 * floor / len(rows):.1f}%   random guess: 20.0%")
+    print(f"  floor, always {FALLBACK}: {100 * floor / len(rows):.1f}%   random guess: 20.0%")
     print(f"Latency: mean {statistics.mean(seconds):.1f} s, median {statistics.median(seconds):.1f} s, "
           f"worst {max(seconds):.1f} s, over {TIME_LIMIT:.0f} s: {over}")
     print(f"Status: {dict(Counter(r['status'] for r in rows))}")
@@ -120,14 +126,15 @@ def main():
     print(f"Letter bias: {excess} predicted {predicted[excess]} times, "
           f"{truth[excess]} in the key (+{predicted[excess] - truth[excess]}).")
 
-    # Does the model know when it is guessing? Confident answers should be right more often.
-    buckets = [("0.0-0.4", 0.0, 0.4), ("0.4-0.6", 0.4, 0.6), ("0.6-0.8", 0.6, 0.8), ("0.8-1.0", 0.8, 1.01)]
-    print("\nConfidence (how sure the model was) vs accuracy")
-    for title, low, high in buckets:
-        group = [r for r in rows if low <= r.get("confidence", 0.0) < high]
-        if group:
-            hits = sum(r["correct"] for r in group)
-            print(f"  {title:8} {hits:4}/{len(group):<4} {100 * hits / len(group):5.1f}%")
+    if solver == "baseline":
+        # Does the model know when it is guessing? Confident answers should be right more often.
+        buckets = [("0.0-0.4", 0.0, 0.4), ("0.4-0.6", 0.4, 0.6), ("0.6-0.8", 0.6, 0.8), ("0.8-1.0", 0.8, 1.01)]
+        print("\nConfidence (how sure the model was) vs accuracy")
+        for title, low, high in buckets:
+            group = [r for r in rows if low <= r.get("confidence", 0.0) < high]
+            if group:
+                hits = sum(r["correct"] for r in group)
+                print(f"  {title:8} {hits:4}/{len(group):<4} {100 * hits / len(group):5.1f}%")
 
     log = "results/ablations.csv"
     new = not os.path.exists(log)

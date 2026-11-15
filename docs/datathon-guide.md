@@ -681,7 +681,7 @@ The code uses only Python's standard library. There's no `pip` on the board, and
 
 ```bash
 mkdir -p results
-python3 predict.py --input data/sample_problems.jsonl --output results/smoke.csv
+python3 predict.py --input data/sample_problems.jsonl --output results/smoke.csv --solver baseline
 cat results/smoke.csv
 ```
 
@@ -811,7 +811,11 @@ wc -l data/train.jsonl data/val.jsonl
 python3 predict.py --input data/val.jsonl --output results/predictions.csv
 ```
 
-For each problem, `copilot/pipeline.py`:
+The default scorer is documented in [Offline exam predictor](exam-deepseek.md).
+To reproduce the original baseline described below, add `--solver baseline`
+to `predict.py` or `eval.py`.
+
+For each problem, the legacy `copilot/pipeline.py`:
 
 1. Formats the question and the options as `A) ...` to `E) ...`
 2. Sends them to the language model with a short instruction
@@ -830,7 +834,7 @@ The output is a CSV file with one row per problem: `id`, `language`, `answer`, `
 ### 11.2 Run the evaluation
 
 ```bash
-python3 eval.py --limit 50 --name baseline
+python3 eval.py --limit 50 --name baseline --solver baseline
 ```
 
 It answers 50 validation problems, chosen the same way each time, and compares them with the labels. It prints:
@@ -1164,7 +1168,7 @@ Check two things early:
 
 The teaching half is built: a hint ladder, an adaptive trainer, a rule-based
 diagnosis of a wrong option, and tick / cross / level on the LED matrix. The
-scoring run is untouched; `predict.py` never imports the tutor.
+scoring run is separate; `predict.py` never imports the tutor.
 
 | File | What it does |
 | --- | --- |

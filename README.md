@@ -55,13 +55,17 @@ Four databases and one rule keep it fast:
 - `data/tutor.db` — the student's attempts and points, never containing the answer they did not find.
 - `config.env` — pinned llama.cpp commit, model repo/revision/file/SHA256, ports, time limit, seed, fallback answer.
 
-**What is the model actually used for?** Two things: one letter for `predict.py`,
-and one short hint at the third rung, which is checked in code before it is
-shown. Grading, diagnosis and choosing the next problem never call the model.
+**What are the models used for?** DeepSeek returns one letter for `predict.py`.
+The 0.8B model writes a short hint at the third rung, which is checked before
+it is shown. Grading, diagnosis and choosing the next problem do not need a model.
 
 **How M3Kang is used.** At build time only. The problems are never committed
 and never shipped: `data/`, `*.db` and `*.gguf` are gitignored. The board reads
 the index and the solutions that were derived from them.
+
+The exam command now uses DeepSeek separately from the tutor. See
+[the offline exam setup](docs/exam-deepseek.md) for the pinned model, board
+launch commands and Discord practice run.
 
 ## How to replicate it
 

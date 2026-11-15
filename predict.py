@@ -16,7 +16,7 @@ import json
 import os
 import sys
 
-from copilot.pipeline import solve
+from copilot.exam import solve
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -26,7 +26,12 @@ def main():
     p.add_argument("--alpha", type=float, default=None,
                    help="override CALIBRATION_ALPHA (0 = no letter-bias correction)")
     p.add_argument("--index", default="data/index.db")
+    p.add_argument("--solver", choices=("deepseek", "baseline"),
+                   help="DeepSeek by default; --rag or --alpha selects the legacy baseline")
     args = p.parse_args()
+    solver = args.solver or ("baseline" if args.rag or args.alpha is not None else "deepseek")
+    if solver == "deepseek" and (args.rag or args.alpha is not None):
+        p.error("--rag and --alpha require --solver baseline")
 
     # A fresh clone has no results/ directory; the official run should not fail on that.
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
@@ -45,7 +50,8 @@ def main():
         writer = csv.writer(out)
         writer.writerow(["id", "language", "answer", "seconds", "status"])
         for n, problem in enumerate(problems, 1):
-            result = solve(problem, index=index, k=args.rag, alpha=args.alpha)
+            result = solve(problem, input_path=args.input, solver=solver, index=index,
+                           k=args.rag, alpha=args.alpha)
             writer.writerow([problem["id"], problem.get("language", ""), result["answer"],
                              result["seconds"], result["status"]])
             out.flush()
