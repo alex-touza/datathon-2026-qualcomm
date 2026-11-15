@@ -43,9 +43,19 @@ TEXT = {
         "chart_radar": "Accuracy by topic",
         "chart_hints": "Hints needed per solved problem",
         "chart_learning": "Learning curve (rolling accuracy, window {window})",
-        "chart_scatter": "Response time vs correctness",
         "chart_box": "Response time by outcome (box plot)",
-        "chart_heatmap": "Accuracy by position in the session",
+        "take_radar": "You do best in {best} ({best_pct}%) and need the most work in {worst} ({worst_pct}%).",
+        "take_radar_equal": "Every topic you tried went equally well ({pct}% across {topics} topics).",
+        "take_radar_one": "Everything you tried was {topic}, where you solved {pct}% of the problems.",
+        "take_hints": "You solved {clean} of {solved} problems without a single hint ({mean} hints per solved problem on average).",
+        "take_hints_none": "You have not solved a problem yet, so there is nothing to say about hints.",
+        "take_learning_up": "Your accuracy rose from {start}% at the start to {end}% towards the end.",
+        "take_learning_down": "Your accuracy fell from {start}% to {end}% towards the end of the session.",
+        "take_learning_flat": "Your accuracy stayed around {end}% from start to finish.",
+        "take_box_slower": "Problems you got first time took a median of {first} s, and the ones you did not solve took {unsolved} s: hesitation tracks the trouble.",
+        "take_box_same": "Problems you got first time took {first} s and the ones you did not solve {unsolved} s, so time alone did not separate them.",
+        "take_box_small": "There is not enough variety of outcomes yet; what you did solve took about {first} s each.",
+        "take_none": "Not enough data yet for a conclusion.",
         "box_first": "first try",
         "box_retry": "after a retry",
         "box_unsolved": "not solved",
@@ -86,9 +96,19 @@ TEXT = {
         "chart_radar": "Encerts per tema",
         "chart_hints": "Pistes necessàries per problema resolt",
         "chart_learning": "Corba d'aprenentatge (mitjana mòbil, finestra {window})",
-        "chart_scatter": "Temps de resposta vs encert",
         "chart_box": "Temps de resposta segons el resultat (diagrama de caixa)",
-        "chart_heatmap": "Encerts segons la posició a la sessió",
+        "take_radar": "El que millor se't dona és {best} ({best_pct}%) i el que més et costa és {worst} ({worst_pct}%).",
+        "take_radar_equal": "Tots els temes que has provat et van igual de bé ({pct}% en {topics} temes).",
+        "take_radar_one": "Tot el que has provat és {topic}, on has resolt el {pct}% dels problemes.",
+        "take_hints": "Has resolt {clean} de {solved} problemes sense cap pista ({mean} pistes per problema resolt de mitjana).",
+        "take_hints_none": "Encara no has resolt cap problema, així que no hi ha res a dir sobre les pistes.",
+        "take_learning_up": "Els teus encerts han pujat del {start}% al començament al {end}% cap al final.",
+        "take_learning_down": "Els teus encerts han baixat del {start}% al {end}% cap al final de la sessió.",
+        "take_learning_flat": "Els teus encerts s'han mantingut al voltant del {end}% de principi a fi.",
+        "take_box_slower": "Els problemes que has encertat a la primera han trigat una mediana de {first} s, i els que no has resolt {unsolved} s: el dubte va lligat amb la dificultat.",
+        "take_box_same": "Els problemes encertats a la primera han trigat {first} s i els no resolts {unsolved} s, així que el temps sol no els distingeix.",
+        "take_box_small": "Encara no hi ha prou varietat de resultats; el que has resolt ha trigat uns {first} s cada un.",
+        "take_none": "Encara no hi ha prou dades per a una conclusió.",
         "box_first": "primer intent",
         "box_retry": "després de reintentar",
         "box_unsolved": "no resolt",
@@ -272,31 +292,6 @@ def learning_chart(problems, language, window=5):
     return _svg(width, height, "".join(body), title)
 
 
-def scatter_chart(session, language):
-    title = _t(language, "chart_scatter")
-    entries = [entry for entry in session.history if entry.get("seconds") is not None]
-    if len(entries) < 2:
-        return _empty(title, language)
-    width, height, pad = 360, 210, 36
-    body = [_axis(width, height, pad)]
-    max_seconds = max(entry["seconds"] for entry in entries) or 1
-    for value in (0, max_seconds / 2, max_seconds):
-        x = pad + (width - 2 * pad) * value / max_seconds
-        body.append(_text(x, height - pad + 14, f"{value:.0f}", 8))
-    body.append(_text(width / 2, height - 4, _t(language, "seconds"), 9))
-    for value, label in ((0, _t(language, "wrong")), (1, _t(language, "correct"))):
-        y = height - pad - (height - 2 * pad) * value
-        body.append(_text(pad - 6, y + 3, label, 8, "end"))
-    for entry in entries:
-        x = pad + (width - 2 * pad) * entry["seconds"] / max_seconds
-        # A little vertical jitter so repeated 0s and 1s do not overlap.
-        jitter = ((entry["index"] * 37 + len(entry.get("choice") or "")) % 7) - 3
-        y = height - pad - (height - 2 * pad) * (1 if entry["correct"] else 0) + jitter
-        color = "var(--good)" if entry["correct"] else "var(--bad)"
-        body.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.2" fill="{color}" fill-opacity="0.55"/>')
-    return _svg(width, height, "".join(body), title)
-
-
 def _quantile(values, q):
     """Linear-interpolation quantile of an already sorted list."""
     if not values:
@@ -375,31 +370,6 @@ def box_chart(problems, language):
         body.append(_text(centre, height - pad + 16, label, 8))
         body.append(_text(centre, height - pad + 28, _t(language, "box_n", n=len(values)), 8))
     body.append(_text(width / 2, 16, _t(language, "seconds"), 9))
-    return _svg(width, height, "".join(body), title)
-
-
-def heatmap_chart(problems, language, bin_size=5):
-    title = _t(language, "chart_heatmap")
-    if not problems:
-        return _empty(title, language)
-    width, height = 360, 150
-    bins = []
-    for start in range(0, len(problems), bin_size):
-        chunk = problems[start:start + bin_size]
-        solved = sum(1 for item in chunk if item["solved"])
-        bins.append((start + 1, start + len(chunk), solved / len(chunk)))
-    slot = (width - 20) / len(bins)
-    body = []
-    for i, (first, last, accuracy) in enumerate(bins):
-        x = 10 + slot * i
-        hue = 140 if accuracy >= 0.5 else 8
-        alpha = 0.18 + 0.55 * accuracy
-        body.append(f'<rect x="{x:.1f}" y="18" width="{slot - 3:.1f}" height="64" rx="6" '
-                    f'fill="hsl({hue} 65% 45%)" fill-opacity="{alpha:.2f}"/>')
-        body.append(_text(x + (slot - 3) / 2, 52, f"{accuracy * 100:.0f}%", 10,
-                          color="var(--ink)", weight="700"))
-        body.append(_text(x + (slot - 3) / 2, 98, f"{first}–{last}", 8))
-    body.append(_text(width / 2, 124, _t(language, "position"), 9))
     return _svg(width, height, "".join(body), title)
 
 
@@ -486,23 +456,97 @@ def feedback(session, problems):
     ]
 
 
+def _topic_stats(problems):
+    stats = {}
+    for item in problems:
+        slot = stats.setdefault(item["topic"], {"total": 0, "solved": 0})
+        slot["total"] += 1
+        slot["solved"] += int(item["solved"])
+    return stats
+
+
+def _median(values):
+    return _quantile(sorted(values), 0.5)
+
+
+def _radar_takeaway(problems, language):
+    """One sentence: which topic is going well and which one is not."""
+    rows = [(topic, data["solved"], data["total"])
+            for topic, data in _topic_stats(problems).items() if data["total"]]
+    if not rows:
+        return _t(language, "take_none")
+    if len(rows) == 1:
+        topic, solved, total = rows[0]
+        return _t(language, "take_radar_one", topic=topics.display(topic, language),
+                  pct=round(100 * solved / total))
+    judged = [(topic, solved / total, round(100 * solved / total))
+              for topic, solved, total in rows]
+    if len({round(row[1], 3) for row in judged}) == 1:
+        return _t(language, "take_radar_equal", pct=judged[0][2], topics=len(judged))
+    best = max(judged, key=lambda row: (row[1], row[0]))
+    worst = min(judged, key=lambda row: (row[1], row[0]))
+    return _t(language, "take_radar",
+              best=topics.display(best[0], language), best_pct=best[2],
+              worst=topics.display(worst[0], language), worst_pct=worst[2])
+
+
+def _hints_takeaway(problems, language):
+    solved = [item for item in problems if item["solved"]]
+    if not solved:
+        return _t(language, "take_hints_none")
+    clean = sum(1 for item in solved if item["hints"] == 0)
+    mean = sum(item["hints"] for item in solved) / len(solved)
+    return _t(language, "take_hints", clean=clean, solved=len(solved), mean=f"{mean:.1f}")
+
+
+def _learning_takeaway(problems, language, window=5):
+    if len(problems) < 2:
+        return _t(language, "take_none")
+
+    def rate(chunk):
+        return round(100 * sum(1 for item in chunk if item["solved"]) / len(chunk))
+
+    start, end = rate(problems[:window]), rate(problems[-window:])
+    if end - start >= 10:
+        return _t(language, "take_learning_up", start=start, end=end)
+    if start - end >= 10:
+        return _t(language, "take_learning_down", start=start, end=end)
+    return _t(language, "take_learning_flat", end=end)
+
+
+def _box_takeaway(problems, language):
+    def seconds(values):
+        return f"{max(1, round(_median(values)))}"
+
+    first = [item["seconds"] for item in problems if item["solved"] and item["first_try"]]
+    unsolved = [item["seconds"] for item in problems if not item["solved"]]
+    if first and unsolved:
+        slow, unsure = _median(first), _median(unsolved)
+        key = "take_box_slower" if unsure >= slow * 1.25 else "take_box_same"
+        return _t(language, key, first=seconds(first), unsolved=seconds(unsolved))
+    only = first or unsolved or [item["seconds"] for item in problems]
+    if not only:
+        return _t(language, "take_none")
+    return _t(language, "take_box_small", first=seconds(only))
+
+
 def build(session):
     """Return the whole end-of-session payload the page draws."""
     language = session.ui_language
     problems = _problems(session)
     charts = [
         {"key": "radar", "title": _t(language, "chart_radar"),
+         "takeaway": _radar_takeaway(problems, language),
          "svg": radar_chart(problems, language)},
         {"key": "hints", "title": _t(language, "chart_hints"),
+         "takeaway": _hints_takeaway(problems, language),
          "svg": hints_chart(problems, language)},
         {"key": "learning", "title": _t(language, "chart_learning", window=5),
+         "takeaway": _learning_takeaway(problems, language),
          "svg": learning_chart(problems, language)},
-        {"key": "scatter", "title": _t(language, "chart_scatter"),
-         "svg": scatter_chart(session, language)},
         {"key": "box", "title": _t(language, "chart_box"),
+         "takeaway": _box_takeaway(problems, language),
          "svg": box_chart(problems, language)},
-        {"key": "heatmap", "title": _t(language, "chart_heatmap"),
-         "svg": heatmap_chart(problems, language)},
     ]
     return {"title": _t(language, "title"),
             "feedback": feedback(session, problems),

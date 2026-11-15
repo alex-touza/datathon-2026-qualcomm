@@ -71,6 +71,9 @@ def is_junk(value):
     # "42 4m", "12 m 1m": two numbers and a unit glued together by a bad box.
     if re.fullmatch(r"\S+\s+\S+\s+\S+", value):
         return True
+    # "2 20": a stray digit and a space in front of the real value.
+    if re.fullmatch(r"\d{1,2}\s+\d+", value):
+        return True
     if not re.search(r"[\w\d]", value):
         return True
     return False
