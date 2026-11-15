@@ -240,6 +240,32 @@ def _value_targets(wanted):
     return unique
 
 
+_ARITHMETIC_HINT = re.compile(r"\d\s+[+\-×÷*/]\s+\d|\d\s*[+\-×÷*/]\s*\d\s*=")
+
+
+def grounding_check(hint, problem):
+    """Return (ok, reason). Is this hint built only from the problem's own numbers?
+
+    A nudge should point at what to look at, not compute. The small model
+    sometimes borrows a number from a problem it has seen before: a hint that
+    says "she starts with 10 sheets" for a problem with 3 + 2 + 2 sheets is
+    fluent, plausible and wrong. A number the problem does not give is the
+    cheapest signal of that, so such a hint falls back to the method hint
+    instead of teaching something false.
+    """
+    text = problem.get("text") or ""
+    given = numbers(text) + word_number_values(text)
+    if _ARITHMETIC_HINT.search(hint):
+        return False, "arithmetic in a hint"
+    for value in numbers(hint) + word_number_values(hint):
+        if value in (1.0, 2.0):
+            # "one hour", "two steps": ordinals and step markers, not claims.
+            continue
+        if not any(_close(value, seen) for seen in given):
+            return False, f"number {value:g} is not in the problem"
+    return True, ""
+
+
 
 # --------------------------------------------------------------------------
 # Diagnosis from the distractors (rule-based, no model)
@@ -457,6 +483,16 @@ _CATALAN_MARKERS = {
 }
 
 
+def language_of(text):
+    """eng, cat, or None when there is not enough prose to tell."""
+    words = re.findall(r"[^\W\d_]+", normalize(text))
+    english = sum(word in _ENGLISH_MARKERS for word in words)
+    catalan = sum(word in _CATALAN_MARKERS for word in words)
+    if english == catalan:
+        return None
+    return "eng" if english > catalan else "cat"
+
+
 def looks_english(text):
     """True when a Catalan hint came back mostly in English."""
     words = re.findall(r"[^\W\d_]+", normalize(text))
@@ -662,6 +698,12 @@ class Tutor:
         cached = self.solutions.get(key_of(problem))
         if cached:
             part1, part2, part3 = cached
+            # A row generated in the other language would read as a glitch on
+            # the page; the ladder is better than the wrong language.
+            if language_of(" ".join(cached)) not in (None, problem.get("language")):
+                cached = None
+        if cached:
+            part1, part2, part3 = cached
             if rung == 1:
                 text = part1
             elif rung == 2:
@@ -739,6 +781,12 @@ class Tutor:
                                      detail={"reason": reason, "raw": raw,
                                              "model_seconds": round(model_seconds, 2)})
             hint["detail"]["leak"] = reason
+            return hint
+        grounded, why = grounding_check(raw, problem)
+        if not grounded:
+            hint = self._method_hint(problem, 3, start, language=language, status="ungrounded",
+                                     detail={"reason": why, "raw": raw,
+                                             "model_seconds": round(model_seconds, 2)})
             return hint
         return {"rung": 3, "kind": "model", "text": raw, "status": "ok",
                 "seconds": round(time.perf_counter() - start, 2),

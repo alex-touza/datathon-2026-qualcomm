@@ -188,13 +188,18 @@ def check_parts(problem, parts, strict_tail=False):
     option letter and value and nothing after it. Rows generated before the
     format existed are checked more leniently.
     """
-    from .tutor import leak_check
+    from .tutor import language_of, leak_check
 
     part1 = (parts.get("part1") or "").strip()
     part2 = (parts.get("part2") or "").strip()
     part3 = (parts.get("part3") or "").strip()
     if not (part1 and part2 and part3):
         return False, "missing one of the three parts"
+
+    want = problem.get("language")
+    got = language_of(" ".join((part1, part2, part3)))
+    if want in ("eng", "cat") and got and got != want:
+        return False, f"written in {got}, but the problem is {want}"
 
     words = re.findall(r"\S+", part1)
     if len(words) > MAX_NUDGE_WORDS:

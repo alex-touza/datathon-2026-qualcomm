@@ -83,6 +83,35 @@ def main():
     found, _ = leak_check("A square has four equal sides.", WORDY)
     check("a different option's word is not a leak", not found, "square is option B")
 
+    print("\nGrounding: a hint may only use the problem's own numbers")
+    from copilot.tutor import grounding_check, language_of
+    check("invented number is refused",
+          not grounding_check("She starts with 10 sheets in total.", CANDY)[0],
+          grounding_check("She starts with 10 sheets in total.", CANDY))
+    check("given numbers are allowed",
+          grounding_check("Ann has 3 bags with 4 apples each.", CANDY)[0],
+          grounding_check("Ann has 3 bags with 4 apples each.", CANDY))
+    check("a calculation is refused",
+          not grounding_check("3 + 4 = 7 apples.", CANDY)[0],
+          grounding_check("3 + 4 = 7 apples.", CANDY))
+    check("english is detected",
+          language_of("First find the total number of apples and then add them") == "eng")
+    check("catalan is detected",
+          language_of("Primer mira el nombre total de pomes i després suma-les") == "cat")
+
+    print("\nA solution must be in the problem's language")
+    from copilot.solutions import check_parts
+    english = {"part1": "Look at one side of the square.",
+               "part2": "The perimeter is 36, so each side is 9. The area is 9×9.",
+               "part3": "Check: 9×9=81. The correct option is C) 81 cm2."}
+    catalan = dict(english, part1="Mira un costat del quadrat.",
+                   part2="El perímetre és 36, així que cada costat fa 9. L'àrea és 9×9.",
+                   part3="Comprovem: 9×9=81. L'opció correcta és C) 81 cm2.")
+    check("english solution accepted", check_parts(PROBLEM, english)[0], check_parts(PROBLEM, english))
+    ok, reason = check_parts(PROBLEM, catalan)
+    check("catalan text in an english problem refused", not ok and "written in cat" in reason,
+          (ok, reason))
+
     print("\nDiagnosis from the distractors")
     expected = {"A": "from_text", "B": None, "D": None, "E": None}
     for choice, tag in expected.items():
