@@ -98,8 +98,20 @@ GLYPHS = {
     "9": [".###.", "#...#", "#...#", ".####", "....#", "....#", ".###."],
     "?": [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
     "!": ["..#..", "..#..", "..#..", "..#..", "..#..", ".....", "..#.."],
-    "tick": [".....", ".....", "....#", "...#.", "#.#..", ".#...", "....."],
-    "cross": [".....", ".....", "#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
+    "tick": [".........",
+             "........#",
+             ".......##",
+             "#.....##.",
+             "##...##..",
+             ".####....",
+             "..#......"],
+    "cross": ["##.....##",
+              ".##...##.",
+              "..##.##..",
+              "...###...",
+              "..##.##..",
+              ".##...##.",
+              "##.....##"],
 }
 
 DRAW_LOCK = threading.Lock()
@@ -117,6 +129,7 @@ def _send(grid):
 
 
 def glyph_grid(text):
+    """Up to two characters from GLYPHS, centred: a letter, a digit, a '?'."""
     grid = np.zeros((8, 13), dtype=np.uint8)
     text = text[:2]
     width = 5 * len(text) + (len(text) - 1)
@@ -127,6 +140,24 @@ def glyph_grid(text):
             for column, pixel in enumerate(line):
                 if pixel == "#":
                     grid[row, left + position * 6 + column] = 7
+    return grid
+
+
+def symbol_grid(name):
+    """One whole symbol, centred: the tick or the cross.
+
+    Not glyph_grid(): that one takes at most two characters of text, so asking
+    it for "tick" drew "ti" and fell back to two question marks. That is why the
+    board showed '??' on every answer.
+    """
+    pattern = GLYPHS.get(name, GLYPHS["?"])
+    grid = np.zeros((8, 13), dtype=np.uint8)
+    width = len(pattern[0])
+    left = max(0, (13 - width) // 2)
+    for row, line in enumerate(pattern):
+        for column, pixel in enumerate(line):
+            if pixel == "#":
+                grid[row, left + column] = 7
     return grid
 
 
@@ -178,7 +209,7 @@ def show_sequence(frames, level=None):
 def show_state_matrix(reason=None):
     level = SESSION.level
     if reason == "answer" and SESSION.result is not None:
-        symbol = glyph_grid("tick" if SESSION.result["correct"] else "cross")
+        symbol = symbol_grid("tick" if SESSION.result["correct"] else "cross")
         # One blink, then the tick or the cross for a couple of seconds, then
         # the level the student is on.
         show_sequence([(0.18, symbol), (0.18, None), (2.2, symbol)], level=level)
