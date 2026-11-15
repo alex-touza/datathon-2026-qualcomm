@@ -60,7 +60,7 @@ echo "== relative links in the documentation resolve"
 python3 - <<'PY'
 import os, re, sys
 missing = 0
-for path in ("README.md", "docs/project-hub.md", "docs/datathon-guide.md", "LICENSE"):
+for path in ("README.md", "CLAUDE.md", "docs/project-hub.md", "docs/datathon-guide.md", "LICENSE"):
     if not os.path.exists(path):
         continue
     text = open(path).read()

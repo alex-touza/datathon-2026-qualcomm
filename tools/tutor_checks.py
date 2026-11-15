@@ -222,7 +222,7 @@ def main():
     check("finish closes the session", finished["finished"] is True)
     report = session.report or {}
     check("four feedback sections", len(report.get("feedback", [])) == 4)
-    check("six charts", len(report.get("charts", [])) == 6)
+    check("four charts", len(report.get("charts", [])) == 4)
 
     print()
     if FAILURES:

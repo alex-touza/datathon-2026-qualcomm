@@ -1,11 +1,11 @@
 """End-of-session feedback and charts, standard library only.
 
 Shiny for Python runs as a separate server with pip packages, and the board has
-no pip and no network. The same five charts are drawn here as inline SVG, so the
-page can show them without a dependency: a radar of topics, a bar chart of how
-many hints each solved problem needed, a rolling learning curve, a scatter of
-response time against correctness, and a heatmap of accuracy by position in the
-session.
+no pip and no network. Four charts are drawn here as inline SVG, each with a
+one-sentence takeaway, so the page can show them without a dependency: a radar of
+topics, a bar chart of how many hints each solved problem needed, a rolling
+learning curve, and a box plot of response time by outcome. The two charts that
+used to sit at the bottom were dropped as unreadable at board size.
 """
 import html
 import math

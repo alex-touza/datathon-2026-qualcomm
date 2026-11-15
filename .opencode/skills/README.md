@@ -8,6 +8,7 @@ These skills teach coding agents how the Arduino UNO Q, this repository, and the
 | [`m3kang-copilot`](m3kang-copilot/SKILL.md) | Change the copilot, run measured experiments, and analyse the errors |
 | [`unoq-hardware-ui`](unoq-hardware-ui/SKILL.md) | Build an App Lab app with a web page and the LED matrix, connected to the copilot |
 | [`publish-project`](publish-project/SKILL.md) | Prepare your public GitHub repository and your Arduino Project Hub write-up |
+| [`minddragon`](minddragon/SKILL.md) | Operate and demo the copilot: ports, the scored entry point, how to read the results honestly, and the failure modes that are not bugs |
 
 Each skill is a folder with a `SKILL.md` file: a short description that tells the agent when to use it, then the instructions.
 
