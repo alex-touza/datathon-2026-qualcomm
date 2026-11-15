@@ -5,7 +5,8 @@ data/*
 
 # Results are created on each board
 results/*
-!results/.gitkeep
+# ...except the experiment log the README quotes (ids and letters, no problem text)
+!results/ablations.csv
 
 # Models live in ~/models, but just in case
 *.gguf
@@ -24,3 +25,6 @@ __pycache__/
 
 # Cloud API keys: never commit one, for any provider
 /tools/api_key_*
+
+# Editor state: keep it local
+.idea/
