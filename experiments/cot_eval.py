@@ -28,22 +28,27 @@ SYSTEM = ("You are a careful maths tutor. Reason in at most three short sentence
           "Then write one final line in exactly this form: Answer: X, where X is A, B, C, D or E. "
           "Do not write anything after that line.")
 ANSWER_RE = re.compile(r"answer\s*[:\-]?\s*([A-E])\b", re.IGNORECASE)
+REASON_SYSTEM = ("You are a careful maths tutor. Give at most two short sentences of reasoning. "
+                 "Do not give the final answer.")
+CHOICE_SYSTEM = "You are a careful maths tutor. Reply with one letter A-E only."
 
 
-def format_problem(problem):
+def format_problem(problem, suffix=""):
     lines = [problem.get("text", "").strip()]
     options = problem.get("options") or {}
     for letter in LETTERS:
         if letter in options:
             lines.append(f"{letter}) {options[letter]}")
-    lines.append("Think briefly, then end with: Answer: X")
+    if suffix:
+        lines.append(suffix)
     return "\n".join(lines)
 
 
 def ask(url, problem, max_tokens, timeout):
     response = post(url, {
         "messages": [{"role": "system", "content": SYSTEM},
-                     {"role": "user", "content": format_problem(problem)}],
+                     {"role": "user", "content": format_problem(
+                         problem, "Think briefly, then end with: Answer: X")}],
         "max_tokens": max_tokens,
         "temperature": 0,
         "seed": 42,
@@ -56,12 +61,42 @@ def ask(url, problem, max_tokens, timeout):
     return letter, text, bool(matches), response.get("timings", {})
 
 
+def ask_two_stage(url, problem, reason_tokens, timeout):
+    """Bound the reasoning first, then force a one-letter second call."""
+    base = format_problem(problem)
+    reasoned = post(url, {
+        "messages": [{"role": "system", "content": REASON_SYSTEM},
+                     {"role": "user", "content": base + "\nReason in at most two sentences."}],
+        "max_tokens": reason_tokens,
+        "temperature": 0,
+        "seed": 42,
+        "cache_prompt": True,
+    }, timeout=timeout)
+    reasoning = (reasoned["choices"][0]["message"].get("content") or "").strip()
+    response = post(url, {
+        "messages": [{"role": "system", "content": CHOICE_SYSTEM},
+                     {"role": "user", "content": base + "\nReasoning:\n" + reasoning +
+                                                  "\nAnswer with one option letter only."}],
+        "grammar": "root ::= [A-E]",
+        "max_tokens": 1,
+        "temperature": 0,
+        "seed": 42,
+        "cache_prompt": True,
+    }, timeout=timeout)
+    choice = response["choices"][0]
+    text = choice["message"].get("content") or ""
+    return text.strip()[:1].upper() or "D", reasoning, True, response.get("timings", {})
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--input", default="data/val.jsonl")
     p.add_argument("--url", default="http://127.0.0.1:8092/v1/chat/completions")
     p.add_argument("--limit", type=int, default=100)
     p.add_argument("--max-tokens", type=int, default=120)
+    p.add_argument("--strategy", choices=("brief", "two-stage"), default="brief")
+    p.add_argument("--reason-tokens", type=int, default=60,
+                   help="maximum tokens for the first reasoning call in two-stage mode")
     p.add_argument("--timeout", type=float, default=120)
     p.add_argument("--only-with-options", action="store_true", default=True)
     p.add_argument("--name", default="cot")
@@ -76,7 +111,12 @@ def main():
     for n, problem in enumerate(rows, 1):
         start = time.perf_counter()
         try:
-            letter, text, found, timings = ask(args.url, problem, args.max_tokens, args.timeout)
+            if args.strategy == "two-stage":
+                letter, text, found, timings = ask_two_stage(
+                    args.url, problem, args.reason_tokens, args.timeout)
+            else:
+                letter, text, found, timings = ask(
+                    args.url, problem, args.max_tokens, args.timeout)
             status = "ok" if found else "no_answer"
         except (urllib.error.URLError, TimeoutError, OSError, KeyError, json.JSONDecodeError) as error:
             letter, text, found, timings = "D", "", False, {}
