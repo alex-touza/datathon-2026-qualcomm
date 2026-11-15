@@ -143,8 +143,10 @@
   .hint.rejected { border-left-color: var(--warn); background: var(--warn-bg); }
   .hint .rung { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
                 color: var(--muted); font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
-  .hint .rung .time { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; }
   .hint p { margin: 6px 0 0; white-space: pre-wrap; }
+  .hint.pending { border-left-color: var(--muted); background: var(--paper);
+                  color: var(--muted); font-style: italic; }
+  body.dark .hint.pending { background: #101a24; }
   .empty { color: var(--muted); font-size: 15px; }
   .notice { color: var(--warn); background: var(--warn-bg); border: 1px solid #f0dcae;
             border-radius: 9px; padding: 8px 12px; font-size: 14px; margin: 12px 0 0; }
@@ -196,10 +198,14 @@
   .dialog .actions { justify-content: flex-end; margin-top: 20px; }
   body.dark .dialog { box-shadow: 0 18px 50px rgba(0, 0, 0, .55); }
 
-  /* A run of clean answers: a small flame with the count written above it. */
-  .streak { display: inline-flex; flex-direction: column; align-items: center;
-            line-height: 1; padding: 1px 6px 0; border-radius: 10px; color: #b45309; }
+  /* A run of clean answers: a small flame with the count written above it, and
+     the best run of the session beside it. It flares each time it goes up. */
+  .streak { display: inline-flex; align-items: center; gap: 6px; line-height: 1;
+            padding: 1px 6px 0; border-radius: 10px; color: #b45309; }
+  .streak-flame { display: inline-flex; flex-direction: column; align-items: center; }
   .streak .num { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .streak .best { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .streak.cold .flame { opacity: .35; }
   .flame { width: 20px; height: 25px; display: block; }
   .flame .outer { fill: #f97316; }
   .flame .inner { fill: #fbbf24; }
@@ -212,6 +218,14 @@
     100% { transform: scale(1) rotate(0); }
   }
   body.dark .streak { color: #fbbf24; }
+
+  /* Right answers grow from the left in green, wrong ones from the right in
+     red, so the balance of the session reads at a glance. */
+  .score-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden;
+               background: var(--line); margin: 0 0 14px; }
+  .score-bar .right { background: var(--good); transition: width .3s ease; }
+  .score-bar .wrong { background: var(--bad); margin-left: auto; transition: width .3s ease; }
+  body.dark .score-bar { background: #24313f; }
 
   /* The milestone message: one line, over the page, gone by itself. */
   .toast { position: fixed; left: 50%; bottom: 26px; z-index: 60;
@@ -247,6 +261,44 @@
                                        background: var(--accent-soft); }
   body.dark .options li > .speak-mini { background: #101a24; }
 
+  /* Accessibility modes, chosen in the panel next to the moon button. The
+     classes land on <body>; the page also rewrites the statement when needed. */
+  .a11y-option { display: flex; gap: 12px; align-items: flex-start; margin: 14px 0;
+                 font-size: 16px; cursor: pointer; }
+  .a11y-option input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+  .a11y-option small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* Dyslexia: soft paper, no uppercase headings, one sentence per line, wide
+     spacing, left aligned, sans serif. */
+  body.a11y-dyslexia:not(.dark) { background: #fbf6ea; color: #2a2a2a; }
+  body.a11y-dyslexia:not(.dark) .card { background: #fffdf7; border-color: #e3dbc8; }
+  body.a11y-dyslexia h2, body.a11y-dyslexia .hint .rung, body.a11y-dyslexia .chip {
+    text-transform: none; letter-spacing: .02em;
+  }
+  body.a11y-dyslexia .problem, body.a11y-dyslexia #text {
+    font-family: Arial, Verdana, Tahoma, system-ui, sans-serif;
+    font-size: 20px; line-height: 1.75; letter-spacing: .02em; word-spacing: .1em;
+    text-align: left; font-style: normal;
+  }
+  body.a11y-dyslexia #text .sentence { display: block; margin: 0 0 .5em; }
+  body.a11y-dyslexia .options button { font-size: 19px; line-height: 1.6; padding: 16px 18px; }
+  body.a11y-dyslexia .options .letter { width: 34px; height: 34px; font-size: 17px; }
+
+  /* Dysgraphia: fewer, bigger targets and clearer blocks, so nothing has to be
+     copied by hand and the eye does not jump between rows. */
+  body.a11y-dysgraphia .options { gap: 14px; }
+  body.a11y-dysgraphia .options button { padding: 18px 20px; font-size: 19px; border-width: 2px; }
+  body.a11y-dysgraphia .card { border-width: 2px; }
+  body.a11y-dysgraphia .hint { padding: 14px 16px; }
+
+  /* Dyscalculia: the figures stand out in the text and in the options. */
+  body.a11y-dyscalculia #text, body.a11y-dyscalculia .options button { font-size: 20px; line-height: 1.75; }
+  body.a11y-dyscalculia #text b, body.a11y-dyscalculia .options b {
+    color: var(--accent); font-weight: 700;
+  }
+  body.a11y-dyscalculia #text .question { display: block; margin-top: .4em; }
+  body.dark.a11y-dyscalculia #text b, body.dark.a11y-dyscalculia .options b { color: #9dcaff; }
+
   /* Dark mode: the moon button at the top flips these; the preference is kept
      in the browser, and the page starts in the system colour scheme. */
   body.dark .chip { background: #1b2938; }
@@ -279,18 +331,28 @@
     <h1 id="title">MindDragon</h1>
     <button class="chip strong level-jump" id="level" type="button">level –</button>
     <button class="chip" id="topic" type="button">topic –</button>
-    <span class="chip" id="progress">0 right / 0</span>
-    <span class="streak" id="streak" hidden title="Clean answers in a row">
-      <span class="num" id="streak-count">0</span>
-      <svg class="flame" viewBox="0 0 24 30" aria-hidden="true">
-        <path class="outer" d="M12 1.4c4.3 5.8 7 9.1 7 13.4a7 7 0 0 1-14 0c0-4.3 2.7-7.6 7-13.4z"/>
-        <path class="inner" d="M12 11.3c2 2.9 3.4 4.5 3.4 6.6a3.4 3.4 0 0 1-6.8 0c0-2.1 1.4-3.7 3.4-6.6z"/>
-      </svg>
+    <span class="streak" id="streak" title="Clean answers in a row">
+      <span class="streak-flame">
+        <span class="num" id="streak-count">0</span>
+        <svg class="flame" viewBox="0 0 24 30" aria-hidden="true">
+          <path class="outer" d="M12 1.4c4.3 5.8 7 9.1 7 13.4a7 7 0 0 1-14 0c0-4.3 2.7-7.6 7-13.4z"/>
+          <path class="inner" d="M12 11.3c2 2.9 3.4 4.5 3.4 6.6a3.4 3.4 0 0 1-6.8 0c0-2.1 1.4-3.7 3.4-6.6z"/>
+        </svg>
+      </span>
+      <span class="best" id="streak-best">best 0</span>
     </span>
     <span class="spacer"></span>
     <span class="tools">
       <span class="busy" id="busy"><span class="pulse"></span>thinking…</span>
       <button class="action quiet" id="finish" type="button">End session</button>
+      <button class="action icon-btn" id="a11y" type="button" aria-label="Accessibility" title="Accessibility">
+        <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <circle cx="12" cy="4.4" r="2.1" fill="currentColor" stroke="none"/>
+          <path d="M4.6 8.4c2.3.9 4.8 1.4 7.4 1.4s5.1-.5 7.4-1.4"/>
+          <path d="M12 9.8v4.6M12 14.4l-3.2 6M12 14.4l3.2 6"/>
+        </svg>
+      </button>
       <button class="action icon-btn" id="theme" type="button" aria-label="Dark mode" title="Dark mode">
         <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
           <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/>
@@ -306,6 +368,13 @@
       <button class="action quiet" id="lang-ca">Català</button>
     </span>
   </header>
+
+  <!-- How many answers went right (green, from the left) and wrong (red, from
+       the right). It sits between the header and the problem card. -->
+  <div class="score-bar" id="score-bar" role="img" aria-label="right and wrong answers">
+    <span class="right" id="score-right"></span>
+    <span class="wrong" id="score-wrong"></span>
+  </div>
 
   <div class="grid">
     <section>
@@ -339,7 +408,7 @@
 
     <aside>
       <div class="card">
-        <h2 id="h-help">Help, one step at a time</h2>
+        <h2 id="h-help">Help</h2>
         <div id="hints"><p class="empty">No hints yet. Try the problem first: help is here when you want it.</p></div>
         <div class="actions">
           <button class="action" id="hint" disabled>Ask for a hint</button>
@@ -348,14 +417,6 @@
       <div class="card">
         <h2 id="h-profile">What you have practised</h2>
         <div id="profile"><p class="empty">Nothing yet. Your profile stays on the board.</p></div>
-      </div>
-      <div class="card">
-        <h2 id="h-how">How this works</h2>
-        <p class="empty" id="how">
-          The board checks your answer against M3Kang's own solution. Hints climb a ladder:
-          a similar solved problem, then the method, then one short sentence from the small
-          model, which is checked in code before you see it. The solution only appears if you ask for it.
-        </p>
       </div>
     </aside>
   </div>
@@ -403,6 +464,28 @@
       <button class="action" id="next-ask-reveal" type="button">Show the solution</button>
       <button class="action quiet" id="next-ask-skip" type="button">Next problem anyway</button>
       <button class="action quiet" id="next-ask-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="a11y-panel" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="a11y-title">
+    <h2 id="a11y-title">Accessibility</h2>
+    <p class="empty" id="a11y-body">Choose what makes the text easier to read.</p>
+    <label class="a11y-option">
+      <input type="checkbox" id="a11y-dyslexia">
+      <span id="a11y-dyslexia-label">Dyslexia<small id="a11y-dyslexia-help">Short lines, bigger letters, wider spacing, cream paper.</small></span>
+    </label>
+    <label class="a11y-option">
+      <input type="checkbox" id="a11y-dysgraphia">
+      <span id="a11y-dysgraphia-label">Dysgraphia<small id="a11y-dysgraphia-help">Big option buttons, more space, clear blocks.</small></span>
+    </label>
+    <label class="a11y-option">
+      <input type="checkbox" id="a11y-dyscalculia">
+      <span id="a11y-dyscalculia-label">Dyscalculia<small id="a11y-dyscalculia-help">Numbers in bold, space around signs, one step at a time.</small></span>
+    </label>
+    <div class="actions">
+      <button class="action quiet" id="a11y-close" type="button">Close</button>
     </div>
   </div>
 </div>
@@ -456,7 +539,8 @@
       lightMode: "Light mode",
       level: (n) => n === null || n === undefined ? "level –" : "level " + n,
       topic: (key) => key ? "topic · " + (TOPIC_NAMES.eng[key] || key) : "topic –",
-      progress: (right, tries) => right + " right / " + tries,
+      streakBest: (n) => "best " + n,
+      scoreTitle: (right, wrong) => right + " right and " + wrong + " wrong so far",
       thinking: "thinking…",
       busyChecking: "checking…",
       busyHint: "looking for a hint…",
@@ -471,15 +555,13 @@
       next: "Next problem",
       reveal: "Show the solution",
       revealArm: "Really show the solution?",
-      help: "Help, one step at a time",
+      help: "Help",
       hintsEmpty: "No hints yet. Try the problem first: help is here when you want it.",
       askHint: (n) => "Ask for hint " + n + " of 3",
-      hintWait: (s) => "Next hint in " + s + " s",
+      hintCheer: ["You are on the right track.", "Good thinking. One moment.",
+                  "Nice, let us look at this together.", "Almost there, reading it now."],
       hintNone: "No more hints",
-      rungs: {1: "Step 1 · a similar solved problem",
-              2: "Step 2 · the method",
-              3: "Step 3 · one sentence from the model",
-              4: "Step 4 · the solution"},
+      rungs: {1: "Step 1", 2: "Step 2", 3: "Step 3", 4: "Step 4"},
       retryIn: (s) => "You can try another option in " + s + " s",
       tryAnother: "Not yet. Try another option.",
       rejected: "The model's sentence repeated the answer, so the checker replaced it. ",
@@ -488,11 +570,6 @@
       profileTitle: "What you have practised",
       profileEmpty: "Nothing yet. Your profile stays on the board.",
       profileLine: (right, tries) => right + " right out of " + tries + " attempts, kept in SQLite on the board.",
-      how: "How this works",
-      howText: "The board checks your answer against M3Kang's own solution. Hints come one step " +
-               "at a time: a similar solved problem, then the method, then one short sentence from " +
-               "the small model, which is checked in code before you see it. The solution only " +
-               "appears if you ask for it.",
       correct: "Correct",
       notThis: "Not this one",
       whatToCheck: "what to check: ",
@@ -524,6 +601,15 @@
       topicBody: "Every next problem comes from the topic you pick.",
       topicAll: "All topics",
       topicCancel: "Cancel",
+      a11yTitle: "Accessibility",
+      a11yBody: "Choose what makes the text easier to read.",
+      a11yDyslexia: "Dyslexia",
+      a11yDyslexiaHelp: "Short lines, bigger letters, wider spacing, cream paper.",
+      a11yDysgraphia: "Dysgraphia",
+      a11yDysgraphiaHelp: "Big option buttons, more space, clear blocks.",
+      a11yDyscalculia: "Dyscalculia",
+      a11yDyscalculiaHelp: "Numbers in bold, space around signs, one step at a time.",
+      a11yClose: "Close",
       nextAskTitle: "Not solved yet",
       nextAskBody: "You can ask for a hint, see the solution, or move on to another problem.",
       nextAskHint: "Ask for a hint",
@@ -550,7 +636,8 @@
       lightMode: "Mode clar",
       level: (n) => n === null || n === undefined ? "nivell –" : "nivell " + n,
       topic: (key) => key ? "tema · " + (TOPIC_NAMES.cat[key] || key) : "tema –",
-      progress: (right, tries) => right + " encerts / " + tries,
+      streakBest: (n) => "màx. " + n,
+      scoreTitle: (right, wrong) => right + " encerts i " + wrong + " errors fins ara",
       thinking: "pensant…",
       busyChecking: "comprovant…",
       busyHint: "buscant una pista…",
@@ -565,15 +652,13 @@
       next: "Problema següent",
       reveal: "Mostra la solució",
       revealArm: "Segur que vols veure la solució?",
-      help: "Ajuda, un pas a la vegada",
+      help: "Ajuda",
       hintsEmpty: "Encara no hi ha pistes. Prova el problema primer: l'ajuda és aquí quan la vulguis.",
       askHint: (n) => "Demana la pista " + n + " de 3",
-      hintWait: (s) => "Propera pista en " + s + " s",
+      hintCheer: ["Vas bé.", "Bona feina. Un moment.",
+                  "Molt bé, mirem-ho junts.", "Ja gairebé hi ets, llegeixo la pista."],
       hintNone: "No hi ha més pistes",
-      rungs: {1: "Pas 1 · un problema semblant ja resolt",
-              2: "Pas 2 · el mètode",
-              3: "Pas 3 · una frase del model",
-              4: "Pas 4 · la solució"},
+      rungs: {1: "Pas 1", 2: "Pas 2", 3: "Pas 3", 4: "Pas 4"},
       retryIn: (s) => "Pots provar una altra opció en " + s + " s",
       tryAnother: "Encara no. Prova una altra opció.",
       rejected: "La frase del model repetia la resposta, així que el comprovador l'ha substituïda. ",
@@ -582,11 +667,6 @@
       profileTitle: "Què has practicat",
       profileEmpty: "Encara res. El teu perfil es queda a la placa.",
       profileLine: (right, tries) => right + " encerts de " + tries + " intents, desats en SQLite a la placa.",
-      how: "Com funciona",
-      howText: "La placa comprova la teva resposta amb la solució de M3Kang. Les pistes arriben " +
-               "d'un pas a la vegada: un problema semblant ja resolt, després el mètode, i després " +
-               "una frase curta del model petit, que es comprova en codi abans de mostrar-se. " +
-               "La solució només surt si la demanes.",
       correct: "Correcte",
       notThis: "Aquesta no és",
       whatToCheck: "què cal revisar: ",
@@ -618,6 +698,15 @@
       topicBody: "Tots els problemes següents seran del tema que triïs.",
       topicAll: "Tots els temes",
       topicCancel: "Cancel·la",
+      a11yTitle: "Accessibilitat",
+      a11yBody: "Tria què fa el text més fàcil de llegir.",
+      a11yDyslexia: "Dislèxia",
+      a11yDyslexiaHelp: "Frases curtes, lletra més gran, més espai, paper crema.",
+      a11yDysgraphia: "Disgrafia",
+      a11yDysgraphiaHelp: "Botons grans, més espai i blocs ben separats.",
+      a11yDyscalculia: "Discalcúlia",
+      a11yDyscalculiaHelp: "Xifres en negreta, espai als signes, un pas a la vegada.",
+      a11yClose: "Tanca",
       nextAskTitle: "Encara no l'has resolt",
       nextAskBody: "Pots demanar una pista, veure la solució o passar a un altre problema.",
       nextAskHint: "Demana una pista",
@@ -808,13 +897,17 @@
   let lastStreak = 0;
   let lastStreakEvent = 0;
   let streakToastTimer = null;
+  let hintPending = false;      // a hint is on its way from the board
+  let hintCheer = "";           // the kind sentence shown while it comes
 
   function renderStreak() {
     const badge = el("streak");
     const streak = Number((state && state.streak) || 0);
+    const best = Number((state && state.best_streak) || 0);
     el("streak-count").textContent = String(streak);
+    el("streak-best").textContent = T().streakBest(best);
     badge.title = T().streakTitle;
-    badge.hidden = streak < 2;
+    badge.classList.toggle("cold", streak === 0);
     badge.classList.toggle("hot", streak >= 10);
     if (streak > lastStreak) {
       badge.classList.remove("bump");
@@ -822,6 +915,105 @@
       badge.classList.add("bump");
     }
     lastStreak = streak;
+  }
+
+  // ---------------------------------------------------------------------
+  // Accessibility: three modes the student turns on in the panel beside the
+  // moon button. The settings live in the browser, and the page rewrites the
+  // OCR text it already has, so the switch is instant and works offline.
+  // ---------------------------------------------------------------------
+  const A11Y_KEY = "minddragon-a11y";
+  const A11Y_MODES = ["dyslexia", "dysgraphia", "dyscalculia"];
+  let a11y = {dyslexia: false, dysgraphia: false, dyscalculia: false};
+  try {
+    const saved = JSON.parse(localStorage.getItem(A11Y_KEY) || "{}");
+    for (const mode of A11Y_MODES) a11y[mode] = !!saved[mode];
+  } catch (error) { /* a broken value is simply ignored */ }
+
+  const a11yOn = () => A11Y_MODES.some((mode) => a11y[mode]);
+
+  function applyA11y() {
+    for (const mode of A11Y_MODES) {
+      document.body.classList.toggle("a11y-" + mode, !!a11y[mode]);
+    }
+    el("a11y").classList.toggle("active", a11yOn());
+  }
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"]/g, (character) => (
+      {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[character]));
+  }
+
+  /** One sentence as HTML: with dyscalculia the figures are bold and the signs
+      get room to breathe. */
+  function formatSentence(sentence) {
+    let html = escapeHtml(sentence);
+    if (a11y.dyscalculia) {
+      html = html.replace(/(\d+(?:[.,]\d+)?)/g, "<b>$1</b>");
+      html = html.replace(/\s*([+\-−×÷=])\s*/g, " $1 ");
+    }
+    return html;
+  }
+
+  function renderProblemText(problem) {
+    const textEl = el("text");
+    if (!problem) {
+      textEl.textContent = T().noProblem;
+      return;
+    }
+    // The leading "18." is the exercise number, not part of the question.
+    const text = String(problem.text || "").replace(/\s+/g, " ")
+      .replace(/^\d+\.\s+/, "").trim();
+    if (!a11yOn()) {
+      textEl.textContent = text || T().noProblem;
+      return;
+    }
+    // Split at sentence ends; a decimal point never splits a number.
+    const sentences = text.match(/[^.!?]+[.!?]*/g) || [text];
+    const parts = sentences.map((sentence) => sentence.trim()).filter(Boolean);
+    textEl.innerHTML = parts.map((sentence, index) => {
+      const last = index === parts.length - 1;
+      let html = formatSentence(sentence);
+      if (last && /\?\s*$/.test(sentence)) html = '<b class="question">' + html + "</b>";
+      return '<span class="sentence">' + html + "</span>";
+    }).join("");
+  }
+
+  function openA11yPanel() {
+    if (!state) return;
+    const t = T();
+    el("a11y-title").textContent = t.a11yTitle;
+    el("a11y-body").textContent = t.a11yBody;
+    el("a11y-close").textContent = t.a11yClose;
+    for (const mode of A11Y_MODES) {
+      const id = "a11y-" + mode;
+      el(id).checked = !!a11y[mode];
+      el(id + "-label").firstChild.textContent =
+        t["a11y" + mode.charAt(0).toUpperCase() + mode.slice(1)];
+      el(id + "-help").textContent =
+        t["a11y" + mode.charAt(0).toUpperCase() + mode.slice(1) + "Help"];
+    }
+    el("a11y-panel").hidden = false;
+    el("a11y-close").focus();
+  }
+
+  function toggleA11yMode(mode, on) {
+    a11y[mode] = !!on;
+    localStorage.setItem(A11Y_KEY, JSON.stringify(a11y));
+    applyA11y();
+    render();          // the statement and the options change at once
+  }
+
+  /** The bar under the header: right answers from the left, wrong from the right. */
+  function renderScore() {
+    const progress = (state && state.progress) || {};
+    const right = Number(progress.right || 0);
+    const tries = Number(progress.tries || 0);
+    const wrong = Math.max(0, tries - right);
+    const total = right + wrong;
+    el("score-right").style.width = total ? (100 * right / total).toFixed(1) + "%" : "0%";
+    el("score-wrong").style.width = total ? (100 * wrong / total).toFixed(1) + "%" : "0%";
+    el("score-bar").setAttribute("aria-label", T().scoreTitle(right, wrong));
   }
 
   function showStreakToast(streak) {
@@ -934,7 +1126,9 @@
       mark.className = "letter";
       mark.textContent = letter;
       const value = document.createElement("span");
-      value.textContent = options[letter];
+      // With dyscalculia on, the figures in the options stand out too.
+      if (a11y.dyscalculia) value.innerHTML = formatSentence(String(options[letter]));
+      else value.textContent = options[letter];
       button.append(mark, value);
       if (tried.has(letter)) button.classList.add("chosen");
       if (tried.has(letter) && !(state.correct === true && state.chosen === letter)) {
@@ -1040,7 +1234,7 @@
   function renderHints() {
     const box = el("hints");
     box.textContent = "";
-    if (!state.hints.length) {
+    if (!state.hints.length && !hintPending) {
       const empty = document.createElement("p");
       empty.className = "empty";
       empty.textContent = T().hintsEmpty;
@@ -1055,10 +1249,7 @@
       head.className = "rung";
       const name = document.createElement("span");
       name.textContent = T().rungs[hint.rung] || ("Step " + hint.rung);
-      const time = document.createElement("span");
-      time.className = "time";
-      time.textContent = hint.seconds.toFixed(2) + " s";
-      head.append(name, time);
+      head.append(name);
       const text = document.createElement("p");
       if (hint.status === "rejected") {
         text.textContent = T().rejected + hint.text;
@@ -1069,6 +1260,21 @@
       } else {
         text.textContent = hint.text;
       }
+      card.append(head, text);
+      box.append(card);
+    }
+    if (hintPending) {
+      // While the board looks for the hint, say something kind instead of
+      // leaving the panel empty.
+      const card = document.createElement("div");
+      card.className = "hint pending";
+      const head = document.createElement("div");
+      head.className = "rung";
+      const name = document.createElement("span");
+      name.textContent = T().rungs[state.next_rung] || "";
+      head.append(name);
+      const text = document.createElement("p");
+      text.textContent = hintCheer || T().busyHint;
       card.append(head, text);
       box.append(card);
     }
@@ -1148,6 +1354,7 @@
     const finished = !!(state && state.finished);
     const grid = document.querySelector(".grid");
     if (grid) grid.hidden = finished;
+    el("score-bar").hidden = finished;
     el("session-end").hidden = !finished;
     el("finish").hidden = finished;
     if (!finished) return;
@@ -1213,7 +1420,8 @@
   /** True while any of the page's questions is open: it owns the keyboard. */
   function dialogOpen() {
     return !!restartQuestion || !el("next-ask").hidden
-      || !el("level-picker").hidden || !el("topic-picker").hidden;
+      || !el("level-picker").hidden || !el("topic-picker").hidden
+      || !el("a11y-panel").hidden;
   }
 
   function closeModals() {
@@ -1221,6 +1429,7 @@
     el("next-ask").hidden = true;
     el("level-picker").hidden = true;
     el("topic-picker").hidden = true;
+    el("a11y-panel").hidden = true;
   }
 
   /** "Next" with the problem still unsolved: ask what to do instead of refusing. */
@@ -1333,9 +1542,7 @@
     button.classList.toggle("cooling", waiting);
     button.classList.toggle("ready", !waiting && hasNext && !busy);
     button.disabled = busy || !hasNext || waiting;
-    if (waiting) button.textContent = T().hintWait(left);
-    else if (hasNext) button.textContent = T().askHint(state.next_rung);
-    else button.textContent = T().hintNone;
+    button.textContent = hasNext ? T().askHint(state.next_rung) : T().hintNone;
   }
 
   function renderStatic() {
@@ -1346,8 +1553,6 @@
     el("h-problem").textContent = t.problem;
     el("h-help").textContent = t.help;
     el("h-profile").textContent = t.profileTitle;
-    el("h-how").textContent = t.how;
-    el("how").textContent = t.howText;
     el("footer-llm").textContent = t.footerLlm;
     el("footer-embed").textContent = t.footerEmbed;
     el("footer-help").textContent = t.footerHelp;
@@ -1371,9 +1576,9 @@
     renderStatic();
     el("level").textContent = t.level(state.level);
     el("topic").textContent = t.topic(state.topic);
-    el("progress").textContent = t.progress(state.progress.right, state.progress.tries);
+    renderScore();
     const textEl = el("text");
-    textEl.textContent = problem ? problem.text : t.noProblem;
+    renderProblemText(problem);
     const notice = el("notice");
     const figure = el("figure");
     const hasImage = !!(problem && problem.image);
@@ -1395,10 +1600,13 @@
       notice.hidden = false;
     };
     // The M3Kang image contains the statement and the options, so the image
-    // replaces the text. If it fails to load, the text comes back.
-    textEl.hidden = hasImage;
-    textEl.parentElement.classList.toggle("image-only", hasImage);
-    if (card) card.classList.toggle("image-mode", hasImage);
+    // replaces the text. If it fails to load, the text comes back. With an
+    // accessibility mode on the words always stay: reading a picture is exactly
+    // what those modes are there to avoid.
+    const keepText = a11yOn();
+    textEl.hidden = hasImage && !keepText;
+    textEl.parentElement.classList.toggle("image-only", hasImage && !keepText);
+    if (card) card.classList.toggle("image-mode", hasImage && !keepText);
     if (hasImage) {
       if (figure.dataset.key !== imageKey) {
         figure.hidden = true;
@@ -1416,8 +1624,8 @@
         }
         figure.src = source;
         figure.hidden = false;
-        textEl.hidden = true;
-        textEl.parentElement.classList.add("image-only");
+        textEl.hidden = keepText ? false : true;
+        textEl.parentElement.classList.toggle("image-only", !keepText);
         if (card) card.classList.add("image-mode");
         showNotice(false);
       });
@@ -1469,7 +1677,13 @@
 
   el("hint").onclick = () => {
     if (!state || !state.problem || !state.next_rung) return;
-    act(`/api/hint/${encodeURIComponent(state.problem.key)}/${state.next_rung}`, T().busyHint);
+    const t = T();
+    const cheers = t.hintCheer || [t.busyHint];
+    hintCheer = cheers[Math.floor(Math.random() * cheers.length)];
+    hintPending = true;
+    render();
+    act(`/api/hint/${encodeURIComponent(state.problem.key)}/${state.next_rung}`, hintCheer)
+      .finally(() => { hintPending = false; render(); });
   };
   el("next").onclick = () => {
     if (!state || !state.problem || busy) return;
@@ -1488,6 +1702,11 @@
   };
   el("level").onclick = () => openLevelPicker();
   el("topic").onclick = () => openTopicPicker();
+  el("a11y").onclick = () => openA11yPanel();
+  el("a11y-close").onclick = () => { el("a11y-panel").hidden = true; };
+  for (const mode of A11Y_MODES) {
+    el("a11y-" + mode).onchange = (event) => toggleA11yMode(mode, event.target.checked);
+  }
   el("next-ask-hint").onclick = () => {
     el("next-ask").hidden = true;
     if (!el("hint").disabled) el("hint").click();
@@ -1504,7 +1723,7 @@
   el("level-cancel").onclick = () => { el("level-picker").hidden = true; };
   el("topic-cancel").onclick = () => { el("topic-picker").hidden = true; };
   // Clicking the dimmed page around a question closes it.
-  for (const id of ["next-ask", "level-picker", "topic-picker"]) {
+  for (const id of ["next-ask", "level-picker", "topic-picker", "a11y-panel"]) {
     el(id).onclick = (event) => {
       if (event.target === el(id)) el(id).hidden = true;
     };
@@ -1565,6 +1784,7 @@
   setInterval(() => { renderHintButton(); updateOptions(); }, 250);
 
   applyTheme();
+  applyA11y();
 
   (async function start() {
     state = await fetchState();

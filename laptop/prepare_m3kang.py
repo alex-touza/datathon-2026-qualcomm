@@ -73,6 +73,15 @@ def shard_paths(args):
 # separate boxes, and ")768351" (parenthesis attached to the value).
 
 MARKER = re.compile(r"^\s*([A-E])\s*([\)）\]:.]?)\s*(.*)$")
+# The parenthesis after a letter is sometimes read as a one: "B) 15/6/2055"
+# comes back as "B1 15/6/2055", and the value then starts with a stray "1 ".
+FALSE_PARENTHESIS = re.compile(r"^1\s+(?=[\d(\[.])")
+
+
+def tidy_value(value):
+    """Compact the whitespace and undo a parenthesis read as a one."""
+    value = " ".join(str(value).split())
+    return FALSE_PARENTHESIS.sub("", value).strip(" )")
 
 
 def reading_order(boxes):
@@ -129,7 +138,7 @@ def parse_options(boxes):
                 options[current] = (options[current] + " " + text).strip()
             i += 1
         if len(options) == 5:
-            cleaned = {k: v.lstrip(")）] ").strip() for k, v in options.items()}
+            cleaned = {k: tidy_value(v.lstrip(")）] ")) for k, v in options.items()}
             if all(cleaned.values()):
                 return cleaned
             return {}  # five markers, but the options are pictures
