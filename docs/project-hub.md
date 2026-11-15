@@ -17,8 +17,13 @@ question, and they cannot be used in an exam room or a school without Wi-Fi.
 
 This project puts the tutor on an Arduino UNO Q 4 GB. It runs with the network
 off. A student reads a problem, picks A–E, and presses a button for a hint. The
-hints come in three cumulative steps, and the board's LED matrix shows a tick or
-a cross and the difficulty level.
+hints come in three cumulative steps, and the board's LED matrix shows the level
+as a digit, then a tick or a cross when the student answers.
+
+Around that core: a rule-based diagnosis of the wrong option, a streak for clean
+first-try answers, offline text to speech for the problem and the options, level
+and topic pickers, and an end-of-session report with six charts drawn as SVG so
+the board needs no plotting library.
 
 The design decision that matters: **the small model is not trusted to explain
 mathematics.** The explanations are generated once, on a laptop, verified by

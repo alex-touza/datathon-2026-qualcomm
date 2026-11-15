@@ -10,6 +10,22 @@ answer — and the board's 8×13 LED matrix shows a tick, a cross, and the level
 There is no chat box. Every control is a button, because a 0.8B model writing
 free-form mathematics on four A53 cores is not a reliable tutor.
 
+What the student gets, all offline:
+
+- **Three cumulative hints.** A nudge, then the working, then the answer only
+  on an explicit second press.
+- **Diagnosis after a wrong answer.** Rule-based, from the distractor: unit,
+  sign, digit swap, off by one, one step short. It says what to check, never
+  the answer.
+- **Adaptive practice.** Right answers move one level up, wrong ones one level
+  down, staying on the same topic when possible. Level and topic are also
+  pickers in the header.
+- **A streak** that counts clean first-try answers, and **text to speech** for
+  the problem and each option, using the browser's offline voices in the page's
+  language.
+- **End-of-session feedback**: four written sections and six charts built as
+  inline SVG, so no plotting library or extra server is needed on the board.
+
 > *Photo: add «docs/photo.jpg», a picture of the board running the copilot, under
 > this line before publishing.*
 
@@ -28,7 +44,7 @@ Two halves on one board, plus a laptop that is used once, before the demo.
 | --- | --- |
 | **Laptop, build time** | RapidOCR over the M3Kang images, the train/val split, the SQLite retrieval index, and the three-part solution generation (a cloud model, verified by code) |
 | **Board, Linux side** | The App Lab app (Python 3, standard library only), `llama-server :8081` with Qwen3.5 0.8B Q8, `llama-server :8082` with bge-small-en-v1.5, and SQLite |
-| **Board, STM32** | `sketch/sketch.ino` drives the 8×13 LED matrix; the App Lab Bridge carries tick, cross, level and topic over to it |
+| **Board, STM32** | `sketch/sketch.ino` drives the 8×13 LED matrix: the level as a digit on a new problem, the hint number, then a single tick or cross blink; the App Lab Bridge carries the state over to it |
 | **Student** | A browser on the same Wi-Fi, hitting the page the app serves on port 7000 |
 
 Four databases and one rule keep it fast:
@@ -99,8 +115,15 @@ Finally install and start the app, on the **board**:
 ```
 
 You should see it listed in App Lab, and the page at
-`http://$(hostname -I | awk '{print $1}'):7000`. The LED matrix shows the tick
-and cross as you answer.
+`http://$(hostname -I | awk '{print $1}'):7000`. The LED matrix shows the level
+digit when a problem appears, and a tick or a cross when you answer.
+
+The App Lab container mounts **only the app folder**, so `06_install_app.sh`
+copies `copilot/`, `config.env`, `data/index.db` and `data/images` next to the
+app (about 150 MB), and keeps `data/tutor.db` across reinstalls. Its
+`config.env` sets `MODEL_HOST=172.17.0.1`, the host as seen from inside the
+container, and both services therefore listen on more than `127.0.0.1`. If the
+page loads but hints fail, that is the first thing to check.
 
 To run the page without the matrix, on the board or a laptop:
 
