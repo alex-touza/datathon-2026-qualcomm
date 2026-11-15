@@ -122,6 +122,14 @@ You should see it listed in App Lab, and the page at
 `http://$(hostname -I | awk '{print $1}'):7000`. The LED matrix shows the level
 digit when a problem appears, and a tick or a cross when you answer.
 
+**The exam predictor is a different model.** `predict.py` defaults to a local
+DeepSeek-R1-Distill-Qwen-1.5B, not the tutor's 0.8B. Put the GGUF in `~/models`,
+start it with `bash board/07_start_deepseek.sh`, and check
+`curl -fsS http://127.0.0.1:18738/health`. Without that server `predict.py`
+answers `D` for every problem with `status=error`. The full setup, including the
+optional Tesseract OCR, is in [docs/exam-deepseek.md](docs/exam-deepseek.md);
+`predict.py --solver baseline` runs the older 0.8B path instead.
+
 The App Lab container mounts **only the app folder**, so `06_install_app.sh`
 copies `copilot/`, `config.env`, `data/index.db` and `data/images` next to the
 app (about 150 MB), and keeps `data/tutor.db` across reinstalls. Its
@@ -166,6 +174,14 @@ problems with options: 28.3%, p = 0.08** (McNemar, not significant). It is
 **not deployable**: on the board it timed out on **6 of 10** problems, median
 **57.1 s**. A 3B-plus-`D` hybrid reaches 27.4% overall (p = 0.14), also
 unestablished.
+
+**The exam scorer is a separate model.** `predict.py` now defaults to a locally
+served **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** (see
+[the offline exam setup](docs/exam-deepseek.md)), with runtime OCR and a 57 s
+wall deadline. It has **no published board measurement yet**, so it is not in
+the table above: every number there comes from the Qwen3.5 0.8B baseline, which
+`--solver baseline` still reproduces exactly. Until the DeepSeek run is measured
+on the board, quote the baseline, not the default.
 
 **Teaching layer cost.** The precomputed path was measured at **0.0 s** (a
 SQLite read). Rungs 1–2 are a local embedding search plus keyword matching,
