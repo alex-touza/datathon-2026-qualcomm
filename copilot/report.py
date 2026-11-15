@@ -149,10 +149,11 @@ def _esc(text):
     return html.escape(str(text))
 
 
-def _svg(width, height, body, title):
+def _svg(width, height, body, title, empty=False):
+    flag = ' data-empty="1"' if empty else ''
     return (f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{_esc(title)}" '
             f'xmlns="http://www.w3.org/2000/svg" '
-            f'style="width:100%;height:auto;font-family:system-ui,sans-serif">'
+            f'style="width:100%;height:auto;font-family:system-ui,sans-serif"{flag}>'
             f'{body}</svg>')
 
 
@@ -201,7 +202,7 @@ def radar_chart(problems, language):
         stats["total"] += 1
         stats["solved"] += int(item["solved"])
     rows = sorted(by_topic.items(), key=lambda pair: (-pair[1]["total"], pair[0]))[:7]
-    if len(rows) < 3:
+    if len(rows) < 2:
         return _empty(title, language)
     width, height = 360, 300
     cx, cy, radius = width / 2, height / 2 - 4, 100
@@ -376,7 +377,7 @@ def box_chart(problems, language):
 def _empty(title, language):
     return _svg(360, 120,
                 _text(180, 64, _t(language, "not_enough"), 11),
-                title)
+                title, empty=True)
 
 
 # --------------------------------------------------------------------------
@@ -534,19 +535,22 @@ def build(session):
     """Return the whole end-of-session payload the page draws."""
     language = session.ui_language
     problems = _problems(session)
+    def chart(key, title, takeaway, svg):
+        # An empty chart must not carry a sentence that reads data it does not
+        # draw: the card would say "not enough data" and then describe a result.
+        return {"key": key, "title": title,
+                "takeaway": _t(language, "take_none") if 'data-empty="1"' in svg else takeaway,
+                "svg": svg}
+
     charts = [
-        {"key": "radar", "title": _t(language, "chart_radar"),
-         "takeaway": _radar_takeaway(problems, language),
-         "svg": radar_chart(problems, language)},
-        {"key": "hints", "title": _t(language, "chart_hints"),
-         "takeaway": _hints_takeaway(problems, language),
-         "svg": hints_chart(problems, language)},
-        {"key": "learning", "title": _t(language, "chart_learning", window=5),
-         "takeaway": _learning_takeaway(problems, language),
-         "svg": learning_chart(problems, language)},
-        {"key": "box", "title": _t(language, "chart_box"),
-         "takeaway": _box_takeaway(problems, language),
-         "svg": box_chart(problems, language)},
+        chart("radar", _t(language, "chart_radar"),
+              _radar_takeaway(problems, language), radar_chart(problems, language)),
+        chart("hints", _t(language, "chart_hints"),
+              _hints_takeaway(problems, language), hints_chart(problems, language)),
+        chart("learning", _t(language, "chart_learning", window=5),
+              _learning_takeaway(problems, language), learning_chart(problems, language)),
+        chart("box", _t(language, "chart_box"),
+              _box_takeaway(problems, language), box_chart(problems, language)),
     ]
     return {"title": _t(language, "title"),
             "feedback": feedback(session, problems),

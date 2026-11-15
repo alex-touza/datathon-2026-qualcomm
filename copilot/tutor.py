@@ -1352,6 +1352,24 @@ class Session:
             return {"error": "the session is over; press restart"}
         if self.problem is not None:
             self.seen.append(self.problem["id"])
+            # A problem the student moves past without answering is still part of
+            # the session. Without this row the end-of-session charts only count
+            # the problems that produced an attempt, so a session of eight
+            # problems with one answer looks like a session of one problem.
+            if not self.answered and not self.revealed:
+                self.history.append({
+                    "index": self.problem_index,
+                    "id": self.problem.get("id"),
+                    "topic": topics.classify(self.problem.get("text", ""))["topic"],
+                    "level": int(self.problem.get("level", 0)),
+                    "choice": None,
+                    "correct": False,
+                    "hints": len(self.hints),
+                    "seconds": round(time.time() - (self.problem_started or time.time()), 1),
+                    "points": 0.0,
+                    "tag": None,
+                    "revealed": False,
+                })
         nxt = self.pending
         if not nxt:
             # A skip, or an empty pending: pick something now.

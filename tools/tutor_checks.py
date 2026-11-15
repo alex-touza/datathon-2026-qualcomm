@@ -207,6 +207,13 @@ def main():
     check("reveal is explicit", revealed["revealed"] is True and revealed["revealed_label"] == "C")
     check("the solution names the option", "C)" in (revealed["solution"] or ""))
 
+    skipper = Session(tutor)
+    before = len(skipper.history)
+    skipper.next()
+    check("a skipped problem still counts in the session",
+          len(skipper.history) == before + 1,
+          f"history {before} -> {len(skipper.history)}")
+
     print("\nPrivate score and end of session")
     saved = session.history
     session.history = [{"points": 10}]
