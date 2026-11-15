@@ -145,10 +145,14 @@ python3 explorer/tutor_server.py --host 0.0.0.0
 
 ## Results
 
-Every number below is from a run recorded in `results/`, listed with its row in
-`results/ablations.csv` where it has one. **Board** means the Arduino UNO Q;
-**laptop** means the same code on x86, which is faster and only used to compare
-models. A 1–2 answer difference is noise; the full set is 562 problems.
+The tables report runs on **real contest problems** from M3Kang and the
+supplied practice set. The older baseline runs are
+indexed in [`results/ablations.csv`](results/ablations.csv); the newer runs and
+their protocols are described in the [benchmark notes](docs/model-benchmarks.md).
+Different samples, inputs and devices are labelled separately. **Board** means
+the Arduino UNO Q; the earlier **laptop** runs used x86; **Mac** runs used Apple
+Silicon. A 1–2 answer difference is noise; the original validation set has
+562 rows.
 
 The reference baseline from the datathon guide (step 11) is **22.5% on 40
 English problems with OCR options**, at 8.7 s mean.
@@ -156,9 +160,9 @@ English problems with OCR options**, at 8.7 s mean.
 | Run | Model | Problems | Accuracy | Mean | Worst | Where |
 | --- | --- | --- | --- | --- | --- | --- |
 | always `D` | — | 562 | 23.1% | 0 s | 0 s | — |
-| **baseline** | Qwen3.5 0.8B Q8 | 50, all languages | **20.0%** | **9.4 s** | **15.2 s** | **board** |
-| baseline | Qwen3.5 0.8B Q8 | 50, all languages | 22.0% | 0.8 s | 1.3 s | laptop |
-| baseline | Qwen3.5 0.8B Q8 | 562, all languages | 23.1% | 1.3 s | 10.8 s | laptop |
+| **baseline** | Qwen3.5 0.8B Q8 | 50, CA/EN | **20.0%** | **9.4 s** | **15.2 s** | **board** |
+| baseline | Qwen3.5 0.8B Q8 | 50, CA/EN | 22.0% | 0.8 s | 1.3 s | laptop |
+| baseline | Qwen3.5 0.8B Q8 | 562, CA/EN | 23.1% | 1.3 s | 10.8 s | laptop |
 | RAG k=1..4 | 0.8B + retrieval | 50 each | 12.0–18.0% | 3.4–8.8 s | up to 21.8 s | laptop |
 | Qwen2.5-Math 1.5B | Q4_K_M | 50 | 16.0% | 1.2 s | 2.2 s | laptop |
 | Qwen3.5 2B | Q4_K_M | 50 / 562 | 22.0% / 22.1% | 1.5 s | 3.2 s | laptop |
@@ -167,21 +171,45 @@ English problems with OCR options**, at 8.7 s mean.
 | permutation averaging (2 orders) | 0.8B | 562 | 22.4% | 2.1 s | 22.4 s | laptop |
 | Jev-Vision 0.8B | GGUF | 339 with options | 21.8% | 2.05 s | 7.6 s | laptop CPU |
 | Jev-Vision 2B | GGUF | 339 with options | 24.8% | 6.51 s | 25.5 s | laptop CPU |
+| OneJev 1.6 0.8B | GGUF | 339 with options | 19.5% | 3.57 s | — | laptop CPU |
+| Original scan only | qev-0.8b labqoat Q8 | 80, CA/EN/ES | 25/80 (31.3%) | 0.48 s | 0.88 s | Mac |
 | Laya multilingual, zero-shot | 322M | 339 with options | 19.2% | — | — | laptop GPU |
+| **Balanced Mac · text** | **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** | 240, levels 0–7, CA/EN/ES | **40/240 (16.7%)** | 2.24 s | 4.48 s | Mac M4, Metal |
+| Balanced Mac · native vision | Qwen3.5 0.8B Q8_0 + vision projector | 240, levels 0–7, CA/EN/ES | 54/240 (22.5%) | 6.75 s | 12.47 s | Mac M4, Metal |
+| **Exam predictor (practice ZIP)** | **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** | 100, CA/EN; OCR for image content | **26/100 (26.0%)** | 0.17 s | 0.36 s | Mac; OCR precomputed |
+| **Matched base model** | **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** | 178, CA/EN; text prompt | **49/178 (27.5%)** | 0.30 s | 0.66 s | Mac |
+| Short answer LoRA | DeepSeek-R1-Distill-Qwen-1.5B IQ3_M + LoRA | same 178 | 39/178 (21.9%) | 0.39 s | 0.76 s | Mac |
+| **OCR-to-answer pilot** | **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** | 4, levels 0/7; 2 with figures | **0/4** | 36.84 s | 44.91 s | **board** |
+| Original scans | d3-mini 4B Q3_K_M | 80, CA/EN/ES | 29/80 (36.3%) | 4.48 s | 6.82 s | Mac |
+| Original scans | d3-mini 4B Q4_K_M | same 80 | 29/80 (36.3%) | 5.57 s | 10.08 s | Mac |
+| Original scans | d3-lite Q8_0 | same 80 | 23/80 (28.8%) | 0.81 s | 1.36 s | Mac |
+| Held-out set, full → pruned | d3-mini 4B Q3_K_M, full / −8 blocks | 220 each, CA/EN; mixed | 65/220 (29.5%) / 60/220 (27.3%) | 3.00 / 2.77 s | — | Mac |
+| Text pilot | d3-mini 4B Q3_K_M | 6, levels 0/4/7 | 3/6 eventual; **0/6 within 60 s** | 98.98 s | 117.78 s | **board** |
+| Text and separate figures/options | d3-nano Q4_K_M | 80, CA/EN/ES | 24/80 (30.0%) | 0.52 s | 1.63 s | Mac |
+| Text and separate figures/options | Liquid d1-omni 600M Q8 | 80, CA/EN/ES | 19/80 (23.8%) | 0.26 s | 1.42 s | Mac |
+| Text and separate figures/options | Liquid d1-omni 2B Q8 | 80, CA/EN/ES | 23/80 (28.8%) | 0.70 s | 2.65 s | Mac |
+| Original scan pilot | Liquid d1-2B Q4_K_M | 36, CA/EN/ES | 12/36 (33.3%) | 1.08 s | 1.76 s | Mac |
+| Text and separate figures/options | Laya English Q8 | 13, EN | 2/13 (15.4%) | 0.22 s | 0.30 s | Mac |
+| Figure and text options | Laya Vision | 32, CA/EN/ES | 8/32 (25.0%) | 0.42 s | 0.61 s | Mac CPU |
+| Matched board pilot | d3-edge Q8 | 3, CA/EN; mixed | 0/3 | 22.92 s | 32.16 s | **board** |
+| Text or OCR + figure | d3-lite Q8_0 | 12, CA/EN | 2/12, both within 60 s | 27.31 s | 39.02 s | **board** |
+| Text or OCR + figure | Liquid d1-2B Q4_K_M | same 12 | 2/12 eventual; 1/12 within 60 s | 49.06 s | 71.66 s | **board** |
 
-The one run that beats the baseline in a way worth mentioning is the **3B on
-problems with options: 28.3%, p = 0.08** (McNemar, not significant). It is
-**not deployable**: on the board it timed out on **6 of 10** problems, median
-**57.1 s**. A 3B-plus-`D` hybrid reaches 27.4% overall (p = 0.14), also
-unestablished.
+**DeepSeek is the model selected for the exam predictor.** The practice ZIP
+result is from the parallel predictor implementation (local commit `10eccda`).
+The board pilot measured end-to-end OCR and inference:
+all four returned within 60 s (32.0–44.9 s), but none were correct. DeepSeek
+receives only text, including OCR; it cannot interpret figures directly.
+The [balanced Mac benchmark](docs/model-benchmarks.md) separates text and native
+vision and includes per-level and per-language results, token counts and the
+60 s budget.
 
-**The exam scorer is a separate model.** `predict.py` now defaults to a locally
-served **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** (see
-[the offline exam setup](docs/exam-deepseek.md)), with runtime OCR and a 57 s
-wall deadline. It has **no published board measurement yet**, so it is not in
-the table above: every number there comes from the Qwen3.5 0.8B baseline, which
-`--solver baseline` still reproduces exactly. Until the DeepSeek run is measured
-on the board, quote the baseline, not the default.
+**d3-mini** reached 36.3% on the 80 real examples on the Mac, and none of its
+six Arduino answers arrived within the deadline. On the separate 220-row holdout,
+pruning traded 5 correct answers for a 0.27 s lower median on the Mac. In the
+older Qwen runs, the **Qwen2.5 3B with options** reached 28.3% (McNemar
+p = 0.08); it timed out on 6/10 board problems, with a 57.1 s median. A
+3B-plus-`D` hybrid reached 27.4% overall (p = 0.14).
 
 **Teaching layer cost.** The precomputed path was measured at **0.0 s** (a
 SQLite read). Rungs 1–2 are a local embedding search plus keyword matching,
