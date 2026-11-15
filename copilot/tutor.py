@@ -858,7 +858,17 @@ class Tutor:
         pool.sort(key=lambda p: (int(p.get("level", 0)), p.get("id") or ""))
         return pool
 
-    def first_problem(self, level=1, language="eng", seed=None, topic=None):
+    def first_problem(self, level=1, language="eng", seed=None, topic=None,
+                      prefer_solution=None):
+        """The problem the page opens on.
+
+        With ``prefer_solution`` (the default, ``FIRST_PROBLEM_SOLVED`` in
+        config.env) the opening problem is one that has a verified precomputed
+        solution, so the very first step the student presses is a real one and
+        costs nothing. The rest of the session is unchanged: `next_problem`
+        still walks the same topic and level. If no solved problem exists at
+        that level and language, the pool is used as it is.
+        """
         def wanted(pool):
             return [p for p in pool if self.topic_of(p) == topic] if topic else pool
 
@@ -875,6 +885,13 @@ class Tutor:
             pool = wanted([p for _k, p, _v in self.rows])
         if not pool:
             return None
+        if prefer_solution is None:
+            prefer_solution = str(CONFIG.get("FIRST_PROBLEM_SOLVED", "1")).lower() \
+                not in ("0", "false", "no", "off")
+        if prefer_solution and self.solutions:
+            solved = [p for p in pool if key_of(p) in self.solutions]
+            if solved:
+                pool = solved
         # The official run uses SEED; the tutor wants a different topic per
         # session, otherwise strict same-topic practice always starts geometry.
         (random.Random(seed) if seed is not None else random.Random()).shuffle(pool)
