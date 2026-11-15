@@ -142,6 +142,12 @@ def make_handler(app):
                     return self.act(app.session.start(level=level, language=language))
                 if parts[:2] == ["api", "reset"]:
                     return self.act(app.session.start())
+                if parts[:2] == ["api", "finish"]:
+                    return self.act(app.session.finish())
+                if parts[:2] == ["api", "report"]:
+                    if not app.session.finished or app.session.report is None:
+                        return self.send(409, {"error": "finish the session first"})
+                    return self.send(200, app.session.report)
                 if parts[:1] == ["api"] and len(parts) >= 3:
                     action, key = parts[1], parts[2]
                     if key != app.session.current_key():

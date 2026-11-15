@@ -178,6 +178,23 @@ def main():
     check("reveal is explicit", revealed["revealed"] is True and revealed["revealed_label"] == "C")
     check("the solution names the option", "C)" in (revealed["solution"] or ""))
 
+    print("\nPrivate score and end of session")
+    saved = session.history
+    session.history = [{"points": 10}]
+    check("a clean answer moves up", session._difficulty_delta(True) == 1)
+    session.history = [{"points": 7}]
+    check("hints hold the level", session._difficulty_delta(True) == 0)
+    session.history = [{"points": -3}, {"points": 10}]
+    check("one error holds the level", session._difficulty_delta(True) == 0)
+    session.history = [{"points": -3}, {"points": -3}, {"points": 10}]
+    check("repeated errors step down", session._difficulty_delta(True) == -1)
+    session.history = saved
+    finished = session.finish()
+    check("finish closes the session", finished["finished"] is True)
+    report = session.report or {}
+    check("four feedback sections", len(report.get("feedback", [])) == 4)
+    check("six charts", len(report.get("charts", [])) == 6)
+
     print()
     if FAILURES:
         print(f"{len(FAILURES)} failed: {', '.join(FAILURES)}")
@@ -232,7 +249,7 @@ class FakeTutor:
     def first_problem(self, level=0, language="eng", seed=42):
         return self.problem
 
-    def next_problem(self, problem, correct, seen_ids=(), prefer_language=None):
+    def next_problem(self, problem, correct, seen_ids=(), prefer_language=None, delta=None):
         other = CANDY if problem["id"] == "area" else PROBLEM
         return {"problem": self.public(other), "target_level": 0, "topic": "arithmetic",
                 "reason": "test", "score": 0.0, "seconds": 0.0}

@@ -1202,7 +1202,19 @@ right answer, or a reveal, enables the next problem.
 
 The page keeps a private score that it never prints: a wrong attempt is -3, each hint is -1,
 and the right answer is +10. So asking for help costs less than failing, and the totals stay
-in `data/tutor.db` for the teacher or the write-up.
+in `data/tutor.db` for the teacher or the write-up. That score also sets the next difficulty:
+the mean of the last four attempts moves the level up (+1), holds it (0) or steps down (-1),
+so a hint-heavy success does not climb as fast as a clean one.
+
+At the end the student presses **End session**. The page then offers **Feedback** and
+**Charts**. Feedback covers the session result, the topics achieved and still weak, the
+errors by distractor type and topic, and a recommendation. Charts are six inline SVG
+drawings generated in `copilot/report.py`: a radar of topics, a bar chart of hints needed
+per solved problem, a rolling learning curve, response time against correctness, a box plot
+of response time grouped by outcome (first try, after a retry, not solved) and an accuracy
+heatmap by position in the session. Shiny for Python would need pip and a separate server,
+which the offline board does not have, so the charts are drawn with the standard library
+instead.
 
 `HINT_COOLDOWN_SECONDS` (20 s) between hints; the button is solid and pulsing when a hint is
 ready, translucent with a countdown while it waits. Retrieval reads Catalan problems through

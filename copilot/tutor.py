@@ -714,8 +714,11 @@ class Tutor:
         (random.Random(seed) if seed is not None else random.Random()).shuffle(pool)
         return pool[0] if pool else None
 
-    def next_problem(self, problem, correct, seen_ids=(), prefer_language=None):
-        """Right: a neighbour one level up. Wrong: the same topic one level down.
+    def next_problem(self, problem, correct, seen_ids=(), prefer_language=None, delta=None):
+        """Move by ``delta`` levels: default up when right, down when wrong.
+
+        The tutor passes a delta computed from the private score, so a right
+        answer that needed hints can hold the level instead of moving up.
 
         The choices are tried in this order, so a missing level never drags the
         student backwards after a right answer:
@@ -728,7 +731,8 @@ class Tutor:
         """
         start = time.perf_counter()
         level = int(problem.get("level", 0))
-        target = max(0, min(MAX_LEVEL, level + (1 if correct else -1)))
+        step = (1 if correct else -1) if delta is None else int(delta)
+        target = max(0, min(MAX_LEVEL, level + step))
         language = prefer_language or problem.get("language")
         topic = topics.classify(problem.get("text", ""))["topic"]
         seen = set(seen_ids) | {problem.get("id")}
@@ -777,8 +781,10 @@ class Tutor:
         nxt_topic = topics.classify(nxt.get("text", ""))["topic"]
         if nxt_topic != topic:
             reason = "neighbour, different topic"
+        elif nxt.get("level") == target and step == 0:
+            reason = "same topic, same level (the score says hold)"
         elif nxt.get("level") == target:
-            reason = "same topic, one level up" if correct else "same topic, one level down"
+            reason = "same topic, one level up" if step > 0 else "same topic, one level down"
         else:
             reason = "same topic, nearest level available"
         return {"problem": self.public(nxt), "target_level": target, "topic": nxt_topic,
@@ -840,8 +846,22 @@ class Session:
         self._clear()
         self.seen = []
         self.counts = {"tries": 0, "right": 0}
+        # One practice session: the history feeds the private score, the
+        # adaptive difficulty and the end-of-session report.
+        self.history = []
+        self.points = 0.0
+        self.finished = False
+        self.report = None
+        self.problem_index = 0
+        self.problem_started = None
+        self.session_started = time.time()
         self.problem = self.tutor.first_problem(level=self.level, language=self.ui_language)
+        self._begin_problem()
         return self.state()
+
+    def _begin_problem(self):
+        self.problem_index += 1
+        self.problem_started = time.time()
 
     def current_key(self):
         return key_of(self.problem) if self.problem else None
@@ -868,24 +888,48 @@ class Session:
             "hints": [{"rung": hint["rung"], "kind": hint["kind"], "text": hint["text"],
                        "status": hint["status"], "seconds": hint["seconds"]} for hint in self.hints],
             "next_rung": (len(self.hints) + 1 if len(self.hints) < 3 else None)
-            if not (self.result and self.result["correct"]) and not self.revealed else None,
+            if not (self.result and self.result["correct"]) and not self.revealed
+            and not self.finished else None,
             "revealed": self.revealed,
             "revealed_label": self.revealed_label,
             "solution": self.solution,
             "next_ready": (bool(self.result and self.result["correct"]) or self.revealed)
-            and self.pending is not None,
+            and self.pending is not None and not self.finished,
             "progress": dict(self.counts),
             "profile": self.profile_summary,
+            "finished": self.finished,
             "hint_cooldown": float(CONFIG.get("HINT_COOLDOWN_SECONDS") or 0),
             "answer_cooldown": float(CONFIG.get("ANSWER_COOLDOWN_SECONDS") or 0),
             "last": self.last,
         }
 
+    def _recent_points(self, count=4):
+        """Mean private points over the last few attempts, including this one."""
+        recent = [entry["points"] for entry in self.history[-count:]]
+        return sum(recent) / len(recent) if recent else 0.0
+
+    def _difficulty_delta(self, correct):
+        """How many levels to move, from the private score, not only correctness.
+
+        A clean right answer (+10) moves up; a right answer that needed hints or
+        a wrong guess holds the level; a wrong answer, or a run of expensive
+        answers, moves down.
+        """
+        if not correct:
+            return -1
+        recent = self._recent_points()
+        if recent >= 8.0:
+            return 1
+        if recent >= 3.0:
+            return 0
+        return -1
+
     def _pick_next(self, problem, correct):
         """The adaptive next problem, or a same-level one if embeddings are down."""
         try:
             return self.tutor.next_problem(problem, correct, seen_ids=self.seen,
-                                           prefer_language=self.ui_language)
+                                           prefer_language=self.ui_language,
+                                           delta=self._difficulty_delta(correct))
         except (OSError, urllib.error.URLError, KeyError, ValueError):
             fallback = self.tutor.first_problem(level=int(problem.get("level", 0)),
                                                 language=self.ui_language)
@@ -899,6 +943,8 @@ class Session:
 
     def answer(self, letter):
         letter = (letter or "").strip().upper()
+        if self.finished:
+            return {"error": "the session is over; press restart"}
         if self.problem is None:
             return {"error": "no problem is on screen"}
         if self.revealed:
@@ -921,6 +967,21 @@ class Session:
         # 1, and a failed attempt already cost 3 when it happened.
         points = max(0.0, 10.0 - 1.0 * len(self.hints)) if result["correct"] else -3.0
         seconds = time.perf_counter() - started
+        response = time.time() - (self.problem_started or time.time())
+        self.points += points
+        self.history.append({
+            "index": self.problem_index,
+            "id": self.problem.get("id"),
+            "topic": topics.classify(self.problem.get("text", ""))["topic"],
+            "level": int(self.problem.get("level", 0)),
+            "choice": letter,
+            "correct": bool(result["correct"]),
+            "hints": len(self.hints),
+            "seconds": round(response, 1),
+            "points": points,
+            "tag": (result.get("diagnosis") or {}).get("tag"),
+            "revealed": False,
+        })
         if self.tutor.profile:
             self.tutor.profile.record(self.problem, letter, result["correct"],
                                       rung=len(self.hints), seconds=seconds, points=points)
@@ -932,6 +993,8 @@ class Session:
         return self.state()
 
     def hint(self, rung=None):
+        if self.finished:
+            return {"error": "the session is over; press restart"}
         if self.problem is None:
             return {"error": "no problem is on screen"}
         if self.revealed:
@@ -953,6 +1016,8 @@ class Session:
         return self.state()
 
     def reveal(self):
+        if self.finished:
+            return {"error": "the session is over; press restart"}
         if self.problem is None:
             return {"error": "no problem is on screen"}
         if self.revealed:
@@ -965,11 +1030,35 @@ class Session:
             # Asking for the solution is not a wrong answer: it is not counted
             # against the student in the profile, only in the session.
             self.counts["tries"] += 1
+            self.history.append({
+                "index": self.problem_index,
+                "id": self.problem.get("id"),
+                "topic": topics.classify(self.problem.get("text", ""))["topic"],
+                "level": int(self.problem.get("level", 0)),
+                "choice": None,
+                "correct": False,
+                "hints": len(self.hints),
+                "seconds": round(time.time() - (self.problem_started or time.time()), 1),
+                "points": 0.0,
+                "tag": None,
+                "revealed": True,
+            })
         self.pending = self.pending or self._pick_next(self.problem, False)
         self.last = {"kind": "reveal"}
         return self.state()
 
+    def finish(self):
+        """Close the session and build the feedback and chart report."""
+        if not self.finished:
+            self.finished = True
+            self.pending = None
+            from .report import build
+            self.report = build(self)
+        return self.state()
+
     def next(self):
+        if self.finished:
+            return {"error": "the session is over; press restart"}
         if self.problem is not None:
             self.seen.append(self.problem["id"])
         nxt = self.pending
@@ -985,6 +1074,7 @@ class Session:
         self._clear()
         self.problem = full
         self.level = int(full.get("level", was))
+        self._begin_problem()
         self.last = {"kind": "next"}
         return self.state()
 

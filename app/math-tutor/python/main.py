@@ -245,6 +245,19 @@ def api_reveal(key):
     return state()
 
 
+def api_finish():
+    with ACTION_LOCK:
+        result = SESSION.finish()
+    show_state_matrix()
+    return result
+
+
+def api_report():
+    if not SESSION.finished or SESSION.report is None:
+        return {"error": "finish the session first"}
+    return SESSION.report
+
+
 def api_next(key):
     with ACTION_LOCK:
         if key != SESSION.current_key():
@@ -276,6 +289,8 @@ UI.expose_api("GET", "/api/answer/{key}/{letter}", api_answer)
 UI.expose_api("GET", "/api/hint/{key}/{rung}", api_hint)
 UI.expose_api("GET", "/api/reveal/{key}", api_reveal)
 UI.expose_api("GET", "/api/next/{key}", api_next)
+UI.expose_api("GET", "/api/finish", api_finish)
+UI.expose_api("GET", "/api/report", api_report)
 UI.expose_api("GET", "/api/image/{key}", api_image)
 
 show_state_matrix()

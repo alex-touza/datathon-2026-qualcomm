@@ -157,6 +157,19 @@
            animation: pulse 1s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
   .flash { min-height: 22px; color: var(--bad); font-weight: 600; font-size: 15px; }
+  #session-end .card { padding: 22px 24px; }
+  .report section + section { margin-top: 16px; }
+  .report h3 { font-size: 15px; margin: 0 0 6px; color: var(--accent); }
+  .report ul { margin: 0; padding-left: 20px; }
+  .report li { margin: 3px 0; }
+  .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+                 gap: 14px; margin-top: 18px; }
+  .report-chart { margin: 0; border: 1px solid var(--line); border-radius: 12px;
+                  padding: 10px 12px 6px; background: var(--paper); }
+  .report-chart figcaption { font-size: 13px; font-weight: 600; color: var(--muted);
+                             margin-bottom: 6px; }
+  .report-chart svg { display: block; }
+  body.dark .report-chart { background: #101a24; }
 
   /* Dark mode: the moon button at the top flips these; the preference is kept
      in the browser, and the page starts in the system colour scheme. */
@@ -193,6 +206,7 @@
     <span class="chip" id="progress">0 right / 0</span>
     <span class="spacer"></span>
     <span class="busy" id="busy"><span class="pulse"></span>thinking…</span>
+    <button class="action quiet" id="finish" type="button">End session</button>
     <button class="action icon-btn" id="theme" type="button" aria-label="Dark mode" title="Dark mode">
       <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
         <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/>
@@ -250,6 +264,20 @@
       </div>
     </aside>
   </div>
+
+  <section id="session-end" hidden>
+    <div class="card">
+      <h2 id="end-title">Session finished</h2>
+      <p class="empty" id="end-line">Here is how the session went.</p>
+      <div class="actions">
+        <button class="action primary" id="show-feedback" type="button">Feedback</button>
+        <button class="action" id="show-charts" type="button">Charts</button>
+        <button class="action quiet" id="restart" type="button">Practise again</button>
+      </div>
+      <div id="feedback-panel" class="report" hidden></div>
+      <div id="charts-panel" class="report-grid" hidden></div>
+    </div>
+  </section>
 
   <div class="footer">
     <span><span class="dot" id="dot-llm"></span><span id="footer-llm">language model</span></span>
@@ -333,6 +361,14 @@
       footerEmbed: "embeddings",
       footerHelp: "Offline. Nothing leaves the board. Keys: A–E answer, H hint, N next.",
       boardDown: "The board did not answer: ",
+      finish: "End session",
+      busyFinish: "closing the session…",
+      endTitle: "Session finished",
+      endLine: "Here is how the session went. Choose feedback or charts.",
+      showFeedback: "Feedback",
+      showCharts: "Charts",
+      restart: "Practise again",
+      reportError: "The report is not ready yet.",
       foreignProblem: (name) => "The question bank has no English version of this problem yet; its text is in " + name + ".",
     },
     cat: {
@@ -389,6 +425,14 @@
       footerEmbed: "embeddings",
       footerHelp: "Fora de línia. Res no surt de la placa. Tecles: A–E resposta, H pista, N següent.",
       boardDown: "La placa no ha respost: ",
+      finish: "Finalitza la sessió",
+      busyFinish: "tancant la sessió…",
+      endTitle: "Sessió finalitzada",
+      endLine: "Així ha anat la sessió. Tria feedback o gràfics.",
+      showFeedback: "Feedback",
+      showCharts: "Gràfics",
+      restart: "Torna a practicar",
+      reportError: "L'informe encara no està llest.",
       foreignProblem: (name) => "El banc de problemes encara no té aquest problema en català; el text és en " + name + ".",
     },
   };
@@ -435,6 +479,9 @@
   let cooldownUntil = 0;
   let answerCooldownUntil = 0;
   let lastKey = null;
+  let report = null;
+  let showFeedback = false;
+  let showCharts = false;
   const imageCache = new Map();
 
   const el = (id) => document.getElementById(id);
@@ -730,6 +777,80 @@
     box.append(chips);
   }
 
+  function buildReportPanels() {
+    const feed = el("feedback-panel");
+    const charts = el("charts-panel");
+    feed.textContent = "";
+    charts.textContent = "";
+    if (!report) return;
+    for (const section of report.feedback || []) {
+      const block = document.createElement("section");
+      const title = document.createElement("h3");
+      title.textContent = section.title;
+      const list = document.createElement("ul");
+      for (const line of section.lines || []) {
+        const item = document.createElement("li");
+        item.textContent = line;
+        list.append(item);
+      }
+      block.append(title, list);
+      feed.append(block);
+    }
+    for (const chart of report.charts || []) {
+      const figure = document.createElement("figure");
+      figure.className = "report-chart";
+      const caption = document.createElement("figcaption");
+      caption.textContent = chart.title;
+      const drawing = document.createElement("div");
+      drawing.innerHTML = chart.svg;   // generated by the board, not user input
+      figure.append(caption, drawing);
+      charts.append(figure);
+    }
+  }
+
+  async function loadReport() {
+    try {
+      const response = await fetch("/api/report", {cache: "no-store"});
+      const body = await response.json();
+      report = body && !body.error ? body : null;
+      if (!report) flash(body.error || T().reportError);
+    } catch (error) {
+      report = null;
+      flash(T().boardDown + error);
+    }
+    buildReportPanels();
+  }
+
+  function renderEnd() {
+    const finished = !!(state && state.finished);
+    const grid = document.querySelector(".grid");
+    if (grid) grid.hidden = finished;
+    el("session-end").hidden = !finished;
+    el("finish").hidden = finished;
+    if (!finished) return;
+    el("end-title").textContent = T().endTitle;
+    el("end-line").textContent = T().endLine;
+    el("show-feedback").textContent = T().showFeedback;
+    el("show-charts").textContent = T().showCharts;
+    el("restart").textContent = T().restart;
+    el("show-feedback").classList.toggle("active", showFeedback);
+    el("show-charts").classList.toggle("active", showCharts);
+    el("feedback-panel").hidden = !showFeedback;
+    el("charts-panel").hidden = !showCharts;
+  }
+
+  async function finishSession() {
+    if (busy) return;
+    showFeedback = false;
+    showCharts = false;
+    report = null;
+    await act("/api/finish", T().busyFinish);
+    if (state && state.finished) {
+      await loadReport();
+      render();
+    }
+  }
+
   function renderHintButton() {
     const button = el("hint");
     if (!button || !state) return;
@@ -846,8 +967,10 @@
 
     renderHintButton();
     if (!busy) el("busy").lastChild.textContent = " " + t.thinking;
+    el("finish").textContent = t.finish;
     el("dot-llm").className = "dot " + (state.servers && state.servers.llm ? "up" : "down");
     el("dot-embed").className = "dot " + (state.servers && state.servers.embed ? "up" : "down");
+    renderEnd();
   }
 
   el("hint").onclick = () => {
@@ -878,6 +1001,22 @@
     localStorage.setItem(THEME_KEY, darkMode ? "dark" : "light");
     applyTheme();
   };
+  el("finish").onclick = () => finishSession();
+  el("show-feedback").onclick = () => {
+    showFeedback = !showFeedback;
+    renderEnd();
+  };
+  el("show-charts").onclick = () => {
+    showCharts = !showCharts;
+    renderEnd();
+  };
+  el("restart").onclick = async () => {
+    report = null;
+    showFeedback = false;
+    showCharts = false;
+    buildReportPanels();
+    await act("/api/reset", T().busyLang);
+  };
 
   document.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -898,6 +1037,7 @@
 
   (async function start() {
     state = await fetchState();
+    if (state.finished) await loadReport();
     render();
     // If a slow hint is already running (page reloaded), keep following it.
     if (state.busy) {
