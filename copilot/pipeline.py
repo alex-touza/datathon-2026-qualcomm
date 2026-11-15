@@ -1,7 +1,7 @@
 """The baseline copilot: one problem in, one letter out.
 
-This is the file to change first. predict.py and eval.py both call solve(),
-so whatever you build here is exactly what the official run measures.
+Used by the explorer and by predict.py / eval.py with --solver baseline.
+The default exam scorer is copilot.exam.
 
 It now also asks the model how sure it was, and can lean against the model's
 letter habits. CALIBRATION_ALPHA=0 in config.env keeps the old behaviour.

@@ -24,7 +24,7 @@ PY
 ok "embeddings look right"
 
 step "Baseline on the 5 sample problems"
-python3 predict.py --input data/sample_problems.jsonl --output results/smoke.csv
+python3 predict.py --input data/sample_problems.jsonl --output results/smoke.csv --solver baseline
 python3 - <<'PY'
 import csv, json
 truth = {p["id"]: p["label"] for p in map(json.loads, open("data/sample_problems.jsonl"))}
