@@ -126,43 +126,117 @@ ANSWER_LETTER_RES = (
     re.compile(r"\b(?:answer|option|choice|correct|solution|resposta|opci[oó]|soluci[oó]|"
                r"correcte)\b[^.\n]{0,40}?\b([A-Ea-e])\b", re.IGNORECASE),
     # a bare option label, "C) 81" -- but not "vitamin C" style prose: require the bracket
-    re.compile(r"(?:^|[\s(])([A-Ea-e])\)"),
+    re.compile(r"(?:^|[\s(])([A-E])\)"),
 )
 
 
 def leak_check(hint, problem, label=None):
     """Return (leaks, reason). Deterministic, so it can be measured.
 
-    A hint leaks when it contains the correct option's value (as a number, as a
-    number word, or as a word) or names the correct option letter next to a word
-    such as "answer". The check is deliberately generous: rejecting a good hint
-    is a fallback, showing a leaky one is not.
+    A hint leaks when it *states* the correct option's value: the value itself
+    as a number or number word, or -- for an option written as an expression or
+    a sequence -- the option text itself, or the correct option letter next to
+    a word such as "answer".
+
+    The check is deliberately narrow in what it calls a leak, because a false
+    positive throws away a good hint:
+      * numbers the problem already gives cannot leak;
+      * `48/6` in the working is not the value `8`;
+      * `2+0+0+8` is not the option `2×0×0×8`;
+      * `abc` inside the working is not the option `√abc`.
     """
     label = label or problem.get("label")
     options = problem.get("options") or {}
     if not hint or not label or label not in options:
         return False, None
+    option = options[label]
     hint_text = normalize(hint)
-    hint_numbers = numbers(hint)
-    hint_words = word_number_values(hint)
+    hint_raw = re.sub(r"\s+", "", hint_text)
+    wanted_raw = re.sub(r"\s+", "", normalize(option))
+    # The numeric core of the option: `81 cm2` -> `81`, `49/10 kg` -> `49/10`.
+    core = re.sub(r"[a-z%°]+\d*$", "", wanted_raw)
 
-    correct_nums, correct_words = option_values(options[label])
-    for value in correct_nums:
-        if any(_close(value, seen) for seen in hint_numbers):
+    # Numbers the problem already gives cannot be a leak: the hint has to use
+    # them. Without this, "the 4 meter fence" or "one cycle" is rejected for
+    # repeating a quantity that every correct solution must repeat.
+    text = problem.get("text") or ""
+    given = numbers(text) + word_number_values(text)
+    explicit = bool(re.search(r"\b(?:answer|result|correct|solution|resposta|resultat|"
+                              r"soluci[oó]|correcte|opci[oó])\b", hint_text))
+
+    correct_nums, correct_words = option_values(option)
+    numeric_option = bool(re.fullmatch(r"-?\d+(?:[.,]\d+)?(?:/\d+(?:[.,]\d+)?)?", core))
+
+    if numeric_option:
+        targets = _value_targets(core)
+        tokens = _NUM_TOKEN.findall(hint_text)
+        for token in tokens:
+            token = token.replace(",", ".").replace(" ", "")
+            wanted = core.replace(",", ".")
+            if token == wanted:
+                return True, "value"
+            if "/" in token or "/" in wanted:
+                continue
+            try:
+                if any(_close(float(token), target) for target in targets):
+                    return True, "value"
+            except ValueError:
+                continue
+        if float_targets := [t for t in targets if float(t).is_integer() and abs(t) <= 100]:
+            for value in float_targets:
+                if not explicit and any(_close(value, seen) for seen in given):
+                    continue
+                if any(_close(value, seen) for seen in word_number_values(hint)):
+                    return True, "value-word"
+    else:
+        # An expression, a sequence ("1-2-4-3-5"), or a symbolic value
+        # ("√abc"): only the option text itself leaks, as a whole token, so
+        # that `4°` is not found inside `324°`.
+        if wanted_raw and re.search(rf"(?<![\w.]){re.escape(wanted_raw)}(?![\w.])", hint_raw):
             return True, "value"
-        if any(_close(value, seen) for seen in hint_words):
+        if correct_words and not re.search(r"[+\-*/×÷^√]", wanted_raw) and all(
+                re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", hint_text)
+                for word in correct_words):
             return True, "value-word"
-    # A purely worded option, such as "square" or "impossible": the whole value
-    # has to be there, not just one of its words.
-    if correct_words and all(
-            re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", hint_text) for word in correct_words):
-        return True, "value-word"
 
     for pattern in ANSWER_LETTER_RES:
         for match in pattern.finditer(hint):
             if match.group(1).upper() == label:
                 return True, "letter"
     return False, None
+
+
+_NUM_TOKEN = re.compile(r"\d+(?:[.,]\d+)?(?:\s*/\s*\d+(?:[.,]\d+)?)?")
+
+
+def _value_targets(wanted):
+    """The value an option stands for, including the order-flipped reading.
+
+    `55 16` is the OCR order-flipped form of `16/55`, so both readings are
+    candidates. Individual digits of a damaged multi-number option are *not*
+    candidates: that would call `2` a leak of `12 2 3 4`.
+    """
+    targets = []
+    split = re.fullmatch(r"(-?\d+(?:[.,]\d+)?)/(\d+(?:[.,]\d+)?)", wanted)
+    if split:
+        top = float(split.group(1).replace(",", "."))
+        bottom = float(split.group(2).replace(",", "."))
+        targets.append(top / bottom if bottom else top)
+        if top:
+            targets.append(bottom / top)
+    else:
+        try:
+            targets.append(float(wanted.replace(",", ".")))
+        except ValueError:
+            pass
+    seen, unique = set(), []
+    for value in targets:
+        key = round(value, 9)
+        if key not in seen:
+            seen.add(key)
+            unique.append(value)
+    return unique
+
 
 
 # --------------------------------------------------------------------------

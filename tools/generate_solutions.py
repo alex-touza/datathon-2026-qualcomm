@@ -4,6 +4,8 @@
 Build-time only. The board never calls this tool or the network; it reads the
 verified rows from data/explanations.db.
 
+Any OpenAI-compatible endpoint works; see tools/PROVIDERS.md.
+
     export DEEPSEEK_API_KEY=...
     python3 tools/generate_solutions.py --dry-run
     python3 tools/generate_solutions.py --limit-ids 5 --name pilot-v1
@@ -61,13 +63,21 @@ def parse_args():
     p.add_argument("--all", action="store_true", help="use every eligible id instead of a 200-id sample")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--name", default="solutions-v1")
-    p.add_argument("--prompt-version", default="v2")
+    p.add_argument("--prompt-version", default="v3")
+    # Provider settings. Any OpenAI-compatible endpoint works; see tools/PROVIDERS.md.
     p.add_argument("--model", default="deepseek-v4-pro")
     p.add_argument("--base-url", default="https://api.deepseek.com")
-    p.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
+    p.add_argument("--api-key-env", default="DEEPSEEK_API_KEY",
+                   help="environment variable holding the key")
+    p.add_argument("--api-key-file", default="",
+                   help="read the key from this file instead of the environment")
     p.add_argument("--max-tokens", type=int, default=6000)
     p.add_argument("--reasoning-effort", default="low", choices=("low", "high", "max", ""),
-                   help="v4 Pro reasoning budget; low is enough for a structured solution")
+                   help="usually DeepSeek only; pass an empty value for providers without it")
+    p.add_argument("--no-json-mode", action="store_true",
+                   help="do not send response_format=json_object; some endpoints reject it")
+    p.add_argument("--no-seed", action="store_true",
+                   help="do not send seed; some endpoints reject it")
     p.add_argument("--timeout", type=float, default=120)
     p.add_argument("--retries", type=int, default=3)
     p.add_argument("--workers", type=int, default=4, help="parallel cloud requests")
@@ -76,17 +86,32 @@ def parse_args():
     p.add_argument("--include-messy", action="store_true",
                    help="allow OCR-garbled options in the selection (off by default)")
     p.add_argument("--stop-on-error", action="store_true")
+    p.add_argument("--max-new", type=int, default=0, help="generate at most this many rows, then stop")
+    p.add_argument("--price-in", type=float, default=1.9, help="USD per million prompt tokens")
+    p.add_argument("--price-out", type=float, default=1.9, help="USD per million completion tokens")
+    p.add_argument("--max-spend", type=float, default=0.0,
+                   help="stop after this much estimated spend (0 = no cap)")
     p.add_argument("--dry-run", action="store_true", help="print the prompt and selection; no API call")
     return p.parse_args()
 
 
+_OCR_JUNK = re.compile(r"[\u4e00-\u9fff]|^\s*0\d|\d[A-Za-z]\d")
+
+
 def clean_options(problem):
-    """Reject clearly garbled OCR options; a bad option confuses the model."""
+    """Reject clearly garbled OCR options; a bad option confuses the model.
+
+    Only the damage that makes an option unusable is rejected here. Split
+    fractions (`49 10`) and OCR square roots (`V5`) are kept: the verifier knows
+    how to read them, and rejecting them costs a real problem.
+    """
     options = problem.get("options") or {}
     if len(options) != 5:
         return False
     values = [str(value).strip() for value in options.values()]
     if any(not value or "=" in value or "\n" in value or len(value) > 40 for value in values):
+        return False
+    if any(_OCR_JUNK.search(value) for value in values):
         return False
     return len(set(values)) == 5
 
@@ -129,10 +154,10 @@ def select_rows(eligible, languages, limit_ids, seed):
     return [eligible[pid][lang] for pid in ids for lang in languages]
 
 
-def read_prompt():
+def read_prompt(version="v3"):
     with open(os.path.join(PROMPTS, "solution_system_v1.txt")) as handle:
         system = handle.read().strip()
-    with open(os.path.join(PROMPTS, "solution_user_v2.txt")) as handle:
+    with open(os.path.join(PROMPTS, f"solution_user_{version}.txt")) as handle:
         user = handle.read()
     return system, user
 
@@ -146,10 +171,43 @@ def format_prompt(template, problem):
             .replace("{{VALUE}}", problem["options"][label]))
 
 
-def request_json(args, system, prompt, image_b64=None):
-    key = os.environ.get(args.api_key_env)
+def read_key(args):
+    """The API key, from --api-key-file or the environment variable."""
+    if args.api_key_file:
+        with open(args.api_key_file) as handle:
+            key = handle.read().strip()
+        if key:
+            return key
+        raise SystemExit(f"{args.api_key_file} is empty")
+    key = os.environ.get(args.api_key_env, "").strip()
     if not key:
-        raise SystemExit(f"set {args.api_key_env} first")
+        raise SystemExit(f"set {args.api_key_env} (or pass --api-key-file) first")
+    return key
+
+
+def message_text(message):
+    """The assistant text, for endpoints that return a string or a list of parts."""
+    content = message.get("content")
+    if isinstance(content, list):
+        return "".join(part.get("text", "") for part in content if isinstance(part, dict))
+    return content or ""
+
+
+def usage_tokens(body):
+    """Token counts, whichever shape the endpoint reports them in."""
+    usage = body.get("usage") or {}
+    prompt = usage.get("prompt_tokens")
+    completion = usage.get("completion_tokens")
+    if prompt is None:
+        meta = body.get("usage_metadata") or {}
+        prompt = meta.get("prompt_token_count")
+        completion = meta.get("candidates_token_count")
+    return int(prompt or 0), int(completion or 0)
+
+
+def request_json(args, system, prompt, image_b64=None, max_tokens=None):
+    """One chat-completions call. Any OpenAI-compatible endpoint works."""
+    key = read_key(args)
     url = args.base_url.rstrip("/") + "/chat/completions"
     content = prompt
     if image_b64:
@@ -163,10 +221,12 @@ def request_json(args, system, prompt, image_b64=None):
         "messages": [{"role": "system", "content": system},
                      {"role": "user", "content": content}],
         "temperature": 0,
-        "seed": 42,
-        "max_tokens": args.max_tokens,
-        "response_format": {"type": "json_object"},
+        "max_tokens": max_tokens or args.max_tokens,
     }
+    if not args.no_seed:
+        payload["seed"] = args.seed
+    if not args.no_json_mode:
+        payload["response_format"] = {"type": "json_object"}
     if args.reasoning_effort:
         payload["reasoning_effort"] = args.reasoning_effort
     request = urllib.request.Request(url, data=json.dumps(payload).encode(),
@@ -178,11 +238,17 @@ def request_json(args, system, prompt, image_b64=None):
             with urllib.request.urlopen(request, timeout=args.timeout) as response:
                 return json.loads(response.read())
         except urllib.error.HTTPError as error:
-            last = error
+            # Show the endpoint's own message: the first failure against a new
+            # provider is almost always a flag it does not support.
+            try:
+                detail = error.read().decode("utf-8", "replace")[:400]
+            except Exception:  # noqa: BLE001
+                detail = ""
+            last = RuntimeError(f"HTTP {error.code} from {url}: {detail}")
             if error.code in (429, 500, 502, 503, 504) and attempt + 1 < args.retries:
                 time.sleep(2 ** attempt)
                 continue
-            raise
+            raise last from error
         except (urllib.error.URLError, TimeoutError) as error:
             last = error
             if attempt + 1 < args.retries:
@@ -229,8 +295,9 @@ def main():
     if args.force:
         existing = set()
 
-    system, template = read_prompt()
+    system, template = read_prompt(args.prompt_version)
     review = []
+    usage_rows = []
     known = {key for key, _verified in existing}
     failed = {key for key, verified in existing if not verified}
     todo = [p for p in rows if p["id"] + "|" + p["language"] not in known
@@ -249,34 +316,82 @@ def main():
                 prompt = ("The problem includes the attached image; use it as part of "
                           "the problem.\n\n" + prompt)
         parts, reason = None, ""
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0,
+                 "finish": "", "budget": args.max_tokens}
+        budget = args.max_tokens
         try:
-            body = request_json(args, system, prompt, image_b64)
-            parts = parse_parts(body["choices"][0]["message"]["content"])
-            ok, reason = check_parts(problem, parts)
+            for attempt in range(2):
+                body = request_json(args, system, prompt, image_b64, max_tokens=budget)
+                choice = body["choices"][0]
+                prompt_tokens, completion_tokens = usage_tokens(body)
+                usage["prompt_tokens"] += prompt_tokens
+                usage["completion_tokens"] += completion_tokens
+                usage["calls"] += 1
+                usage["finish"] = choice.get("finish_reason") or ""
+                usage["budget"] = budget
+                content = message_text(choice.get("message") or {})
+                truncated = str(usage["finish"]).lower() in ("length", "max_tokens")
+                if content.strip() and not truncated:
+                    parts = parse_parts(content)
+                    ok, reason = check_parts(problem, parts,
+                                             strict_tail=args.prompt_version == "v3")
+                    break
+                if attempt == 0:
+                    # The hidden reasoning ate the whole budget and the JSON came
+                    # back empty or cut off. Retry once with twice the room.
+                    budget = min(budget * 2, 16000)
+                    continue
+                reasons = (f"truncated: finish_reason={usage['finish']}"
+                           if truncated else "empty response")
+                ok, reason = False, f"JSON truncated ({reasons}, {budget} tokens)"
+                parts = {"part1": "", "part2": "", "part3": ""}
         except Exception as error:  # noqa: BLE001 - record the failure, keep going
             ok, reason = False, f"{type(error).__name__}: {error}"
             parts = parts or {"part1": "", "part2": "", "part3": ""}
         return {**problem, "problem": problem, "key": key, **parts,
-                "verified": ok, "reason": reason}
+                "verified": ok, "reason": reason, "usage": usage}
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
-        futures = {pool.submit(work, problem): problem for problem in todo}
-        for n, future in enumerate(concurrent.futures.as_completed(futures), 1):
-            row = future.result()
-            problem, key = row["problem"], row["key"]
-            db.execute(
-                "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (key, problem["id"], problem["language"], problem.get("level"),
-                 row["part1"], row["part2"], row["part3"], args.model, args.prompt_version,
-                 int(row["verified"]), "" if row["verified"] else row["reason"], time.time()))
-            db.commit()
-            review.append(row)
-            print(f"[{n}/{len(todo)}] {key}: "
-                  f"{'OK' if row['verified'] else 'REJECT ' + row['reason']}", flush=True)
-            if not row["verified"] and args.stop_on_error:
-                for pending in futures:
-                    pending.cancel()
+        done = 0
+        spent = 0.0
+        stop = False
+        window = max(1, args.workers) * 2
+        for start in range(0, len(todo), window):
+            if stop:
                 break
+            batch = todo[start:start + window]
+            for row in pool.map(work, batch):
+                done += 1
+                problem, key = row["problem"], row["key"]
+                spent += (row["usage"]["prompt_tokens"] * args.price_in
+                          + row["usage"]["completion_tokens"] * args.price_out) / 1e6
+                db.execute(
+                    "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (key, problem["id"], problem["language"], problem.get("level"),
+                     row["part1"], row["part2"], row["part3"], args.model, args.prompt_version,
+                     int(row["verified"]), "" if row["verified"] else row["reason"], time.time()))
+                db.commit()
+                review.append(row)
+                usage_rows.append({"key": key, "verified": int(row["verified"]),
+                                   **row["usage"]})
+                print(f"[{done}/{len(todo)}] {key}: "
+                      f"{'OK' if row['verified'] else 'REJECT ' + row['reason']} "
+                      f"({row['usage']['prompt_tokens']}+{row['usage']['completion_tokens']} tok, "
+                      f"~${spent:.3f})", flush=True)
+                if not row["verified"] and args.stop_on_error:
+                    stop = True
+                    break
+                if args.max_new and done >= args.max_new:
+                    stop = True
+                    break
+            if args.max_spend and spent >= args.max_spend:
+                print(f"\nStopped at the spend cap: ~${spent:.3f} "
+                      f"(cap ${args.max_spend:.2f} at the prices given)", flush=True)
+                stop = True
+        if args.max_spend and spent >= args.max_spend:
+            pass
+        elif args.max_new and done >= args.max_new:
+            print(f"\nStopped at --max-new {args.max_new} rows", flush=True)
 
     os.makedirs("results", exist_ok=True)
     review_path = f"results/solutions-review-{args.name}.csv"
@@ -286,8 +401,21 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(review)
+    usage_path = f"results/solutions-usage-{args.name}.csv"
+    with open(usage_path, "w", newline="", encoding="utf-8") as handle:
+        fields = ["key", "verified", "prompt_tokens", "completion_tokens", "calls",
+                  "finish", "budget"]
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(usage_rows)
+    if usage_rows:
+        prompt_tokens = sum(row["prompt_tokens"] for row in usage_rows)
+        completion_tokens = sum(row["completion_tokens"] for row in usage_rows)
+        print(f"\nTokens: {prompt_tokens} in / {completion_tokens} out "
+              f"over {len(usage_rows)} rows "
+              f"(mean {completion_tokens / len(usage_rows):.0f} out)")
     db.close()
-    print(f"\nWrote {args.out}\nReview: {review_path}")
+    print(f"\nWrote {args.out}\nReview: {review_path}\nUsage: {usage_path}")
 
 
 if __name__ == "__main__":
