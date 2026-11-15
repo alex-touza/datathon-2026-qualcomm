@@ -10,91 +10,93 @@
   <text x="30" y="66" font-size="14" fill="#5b6470">Build time happens once on a laptop. Everything below the dashed line runs on the board, with no network.</text>
 
   <!-- Laptop / build time -->
-  <rect x="30" y="90" width="330" height="230" rx="10" fill="#f4f7fb" stroke="#c8d3e0"/>
+  <rect x="30" y="90" width="300" height="230" rx="10" fill="#f4f7fb" stroke="#c8d3e0"/>
   <text x="46" y="116" font-size="15" font-weight="bold" fill="#12324f">Laptop, build time only</text>
-  <rect x="46" y="130" width="298" height="36" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
-  <text x="58" y="153" font-size="13" fill="#233">RapidOCR: problem text and A–E options</text>
-  <rect x="46" y="174" width="298" height="36" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
-  <text x="58" y="197" font-size="13" fill="#233">prepare_m3kang: split, images, index</text>
-  <rect x="46" y="218" width="298" height="36" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
-  <text x="58" y="241" font-size="13" fill="#233">build_index.py: SQLite embeddings</text>
-  <rect x="46" y="262" width="298" height="44" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
-  <text x="58" y="281" font-size="13" fill="#233">generate_solutions.py: three-part</text>
-  <text x="58" y="297" font-size="13" fill="#233">solutions, verified by code, in the cloud</text>
+  <rect x="46" y="130" width="268" height="36" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
+  <text x="56" y="153" font-size="13" fill="#233">RapidOCR: problem text and A–E options</text>
+  <rect x="46" y="174" width="268" height="36" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
+  <text x="56" y="197" font-size="13" fill="#233">prepare_m3kang: split, images, index</text>
+  <rect x="46" y="218" width="268" height="36" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
+  <text x="56" y="241" font-size="13" fill="#233">build_index.py: SQLite embeddings</text>
+  <rect x="46" y="262" width="268" height="44" rx="6" fill="#ffffff" stroke="#dbe3ec"/>
+  <text x="56" y="281" font-size="13" fill="#233">generate_solutions.py: three-part</text>
+  <text x="56" y="297" font-size="12" fill="#233">verified by code, in the cloud</text>
 
-  <line x1="360" y1="205" x2="424" y2="205" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="368" y="188" font-size="12" fill="#5b6470">data/</text>
-  <text x="356" y="222" font-size="12" fill="#5b6470">index.db, explanations.db</text>
+  <line x1="330" y1="205" x2="430" y2="205" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="380" y="181" font-size="11" fill="#5b6470" text-anchor="middle">data/, index.db,</text>
+  <text x="380" y="195" font-size="11" fill="#5b6470" text-anchor="middle">explanations.db</text>
 
   <!-- Board -->
-  <rect x="430" y="90" width="470" height="460" rx="12" fill="#eef3f9" stroke="#b9c7d8" stroke-width="2"/>
-  <text x="448" y="116" font-size="16" font-weight="bold" fill="#12324f">Arduino UNO Q 4 GB</text>
+  <rect x="440" y="90" width="470" height="460" rx="12" fill="#eef3f9" stroke="#b9c7d8" stroke-width="2"/>
+  <text x="458" y="116" font-size="16" font-weight="bold" fill="#12324f">Arduino UNO Q 4 GB</text>
 
-  <rect x="448" y="128" width="434" height="330" rx="10" fill="#ffffff" stroke="#dbe3ec"/>
-  <text x="462" y="150" font-size="14" font-weight="bold" fill="#12324f">Linux side (Debian, 4 Arm cores, 3.6 GB RAM)</text>
+  <rect x="458" y="128" width="434" height="330" rx="10" fill="#ffffff" stroke="#dbe3ec"/>
+  <text x="472" y="150" font-size="14" font-weight="bold" fill="#12324f">Linux side (Debian, 4 Arm cores, 3.6 GB RAM)</text>
 
-  <rect x="462" y="162" width="200" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
-  <text x="474" y="183" font-size="13" font-weight="bold" fill="#233">App Lab app</text>
-  <text x="474" y="200" font-size="12" fill="#233">Python 3, standard library only</text>
-  <text x="474" y="216" font-size="12" fill="#233">serves the page, runs the tutor</text>
+  <rect x="472" y="162" width="200" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
+  <text x="484" y="183" font-size="13" font-weight="bold" fill="#233">App Lab app</text>
+  <text x="484" y="200" font-size="12" fill="#233">Python 3, standard library only</text>
+  <text x="484" y="216" font-size="12" fill="#233">serves the page, runs the tutor</text>
 
-  <rect x="674" y="162" width="192" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
-  <text x="686" y="183" font-size="13" font-weight="bold" fill="#233">llama-server :8081</text>
-  <text x="686" y="200" font-size="12" fill="#233">Qwen3.5 0.8B Q8, 835 MB</text>
-  <text x="686" y="216" font-size="12" fill="#233">one letter, or one short hint</text>
+  <rect x="684" y="162" width="192" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
+  <text x="696" y="183" font-size="13" font-weight="bold" fill="#233">llama-server :8081</text>
+  <text x="696" y="200" font-size="12" fill="#233">Qwen3.5 0.8B Q8, 835 MB</text>
+  <text x="696" y="216" font-size="12" fill="#233">one letter, one hint</text>
 
-  <rect x="462" y="236" width="200" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
-  <text x="474" y="257" font-size="13" font-weight="bold" fill="#233">llama-server :8082</text>
-  <text x="474" y="274" font-size="12" fill="#233">bge-small-en-v1.5 Q8, 37 MB</text>
-  <text x="474" y="290" font-size="12" fill="#233">384-dim embeddings</text>
+  <rect x="472" y="236" width="200" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
+  <text x="484" y="257" font-size="13" font-weight="bold" fill="#233">llama-server :8082</text>
+  <text x="484" y="274" font-size="12" fill="#233">bge-small-en-v1.5 Q8, 37 MB</text>
+  <text x="484" y="290" font-size="12" fill="#233">384-dim embeddings</text>
 
-  <rect x="674" y="236" width="192" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
-  <text x="686" y="257" font-size="13" font-weight="bold" fill="#233">SQLite</text>
-  <text x="686" y="274" font-size="12" fill="#233">index.db: solved neighbours</text>
-  <text x="686" y="290" font-size="12" fill="#233">tutor.db: attempts, points</text>
+  <rect x="684" y="236" width="192" height="64" rx="6" fill="#f7fbff" stroke="#c8d3e0"/>
+  <text x="696" y="257" font-size="13" font-weight="bold" fill="#233">SQLite</text>
+  <text x="696" y="274" font-size="12" fill="#233">index.db: solved neighbours</text>
+  <text x="696" y="290" font-size="12" fill="#233">tutor.db: attempts, points</text>
 
-  <rect x="462" y="312" width="404" height="58" rx="6" fill="#fff8ec" stroke="#e6cfa4"/>
-  <text x="474" y="333" font-size="13" font-weight="bold" fill="#6b4a12">Teaching layer (copilot/tutor.py)</text>
-  <text x="474" y="350" font-size="12" fill="#6b4a12">three parts from explanations.db, else the rule ladder: easier solved neighbour, method, one leak-checked model hint</text>
+  <rect x="472" y="312" width="404" height="70" rx="6" fill="#fff8ec" stroke="#e6cfa4"/>
+  <text x="484" y="333" font-size="13" font-weight="bold" fill="#6b4a12">Teaching layer (copilot/tutor.py)</text>
+  <text x="484" y="351" font-size="12" fill="#6b4a12">three parts from explanations.db, else the rule ladder:</text>
+  <text x="484" y="368" font-size="12" fill="#6b4a12">easier neighbour, method, one leak-checked hint</text>
 
-  <rect x="462" y="382" width="404" height="58" rx="6" fill="#fff8ec" stroke="#e6cfa4"/>
-  <text x="474" y="403" font-size="13" font-weight="bold" fill="#6b4a12">Grading, diagnosis, next problem: no model</text>
-  <text x="474" y="420" font-size="12" fill="#6b4a12">label from the dataset; distractor rules; same-topic neighbour, one level up or down</text>
+  <rect x="472" y="390" width="404" height="66" rx="6" fill="#fff8ec" stroke="#e6cfa4"/>
+  <text x="484" y="411" font-size="13" font-weight="bold" fill="#6b4a12">Grading, diagnosis, next problem: no model</text>
+  <text x="484" y="429" font-size="12" fill="#6b4a12">label from the dataset; distractor rules;</text>
+  <text x="484" y="445" font-size="12" fill="#6b4a12">same-topic neighbour, one level up or down</text>
 
-  <line x1="660" y1="430" x2="660" y2="478" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="668" y="460" font-size="12" fill="#5b6470">Bridge</text>
+  <line x1="670" y1="460" x2="670" y2="480" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="678" y="475" font-size="12" fill="#5b6470">Bridge</text>
 
-  <rect x="448" y="486" width="434" height="50" rx="10" fill="#ffffff" stroke="#dbe3ec"/>
-  <text x="462" y="509" font-size="14" font-weight="bold" fill="#12324f">STM32 microcontroller</text>
-  <text x="462" y="528" font-size="12" fill="#233">sketch.ino draws on the 8×13 LED matrix: tick, cross, level, topic</text>
+  <rect x="458" y="486" width="434" height="50" rx="10" fill="#ffffff" stroke="#dbe3ec"/>
+  <text x="472" y="509" font-size="14" font-weight="bold" fill="#12324f">STM32 microcontroller</text>
+  <text x="472" y="528" font-size="12" fill="#233">sketch.ino drives the 8×13 LED matrix: level, hint, tick, cross</text>
 
   <!-- Student browser -->
-  <rect x="930" y="90" width="220" height="120" rx="10" fill="#f4f7fb" stroke="#c8d3e0"/>
-  <text x="948" y="116" font-size="15" font-weight="bold" fill="#12324f">Student</text>
-  <text x="948" y="138" font-size="12" fill="#233">Browser on the same Wi-Fi</text>
-  <text x="948" y="156" font-size="12" fill="#233">Problem, options, and</text>
-  <text x="948" y="172" font-size="12" fill="#233">buttons: answer, hint, reveal</text>
-  <text x="948" y="190" font-size="12" fill="#233">No chat box.</text>
+  <rect x="952" y="90" width="198" height="120" rx="10" fill="#f4f7fb" stroke="#c8d3e0"/>
+  <text x="956" y="116" font-size="15" font-weight="bold" fill="#12324f">Student</text>
+  <text x="956" y="138" font-size="12" fill="#233">Browser on the same Wi-Fi</text>
+  <text x="956" y="156" font-size="12" fill="#233">Problem, options, and</text>
+  <text x="956" y="172" font-size="12" fill="#233">buttons: answer, hint, reveal</text>
+  <text x="956" y="190" font-size="12" fill="#233">No chat box.</text>
 
-  <line x1="930" y1="150" x2="902" y2="194" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="912" y="176" font-size="11" fill="#5b6470">HTTP</text>
+  <line x1="952" y1="150" x2="924" y2="196" stroke="#5b6470" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="922" y="176" font-size="11" fill="#5b6470" text-anchor="end">HTTP</text>
 
   <!-- Notes -->
-  <rect x="930" y="236" width="220" height="314" rx="10" fill="#f7f9fb" stroke="#dbe3ec"/>
-  <text x="948" y="262" font-size="13" font-weight="bold" fill="#12324f">Why the split matters</text>
-  <text x="948" y="286" font-size="12" fill="#233">Prefill ≈ 11 tok/s, decode ≈ 6 tok/s.</text>
-  <text x="948" y="304" font-size="12" fill="#233">One letter ≈ 9 s. A short hint</text>
-  <text x="948" y="322" font-size="12" fill="#233">is 15–20 s. The limit is 60 s.</text>
-  <text x="948" y="348" font-size="12" fill="#233">So reasoning stays cheap: one</text>
-  <text x="948" y="366" font-size="12" fill="#233">token, grammar A–E, fallback D.</text>
-  <text x="948" y="392" font-size="12" fill="#233">Teaching carries the quality: the</text>
-  <text x="948" y="410" font-size="12" fill="#233">three parts are precomputed and</text>
-  <text x="948" y="428" font-size="12" fill="#233">verified before the board boots.</text>
-  <text x="948" y="454" font-size="12" fill="#233">M3Kang is read at build time only.</text>
-  <text x="948" y="472" font-size="12" fill="#233">No problem text ships in the app.</text>
+  <rect x="952" y="236" width="198" height="314" rx="10" fill="#f7f9fb" stroke="#dbe3ec"/>
+  <text x="956" y="262" font-size="13" font-weight="bold" fill="#12324f">Why the split matters</text>
+  <text x="956" y="286" font-size="12" fill="#233">Prefill ≈ 11 tok/s, decode ≈ 6 tok/s.</text>
+  <text x="956" y="304" font-size="12" fill="#233">One letter ≈ 9 s. A short hint</text>
+  <text x="956" y="322" font-size="12" fill="#233">is 15–20 s. The limit is 60 s.</text>
+  <text x="956" y="348" font-size="12" fill="#233">So reasoning stays cheap: one</text>
+  <text x="956" y="366" font-size="12" fill="#233">token, grammar A–E, fallback D.</text>
+  <text x="956" y="392" font-size="12" fill="#233">Teaching carries the quality: the</text>
+  <text x="956" y="410" font-size="12" fill="#233">three parts are precomputed and</text>
+  <text x="956" y="428" font-size="12" fill="#233">verified before the board boots.</text>
+  <text x="956" y="454" font-size="12" fill="#233">M3Kang is read at build time only.</text>
+  <text x="956" y="472" font-size="12" fill="#233">No problem text ships in the app.</text>
 
   <!-- M3Kang note -->
-  <rect x="30" y="340" width="330" height="150" rx="10" fill="#fdf4f4" stroke="#e8c9c9"/>
+  <rect x="30" y="340" width="300" height="150" rx="10" fill="#fdf4f4" stroke="#e8c9c9"/>
   <text x="46" y="366" font-size="13" font-weight="bold" fill="#7a2b2b">M3Kang, research use only</text>
   <text x="46" y="390" font-size="12" fill="#7a2b2b">Problems come from the Kangaroo</text>
   <text x="46" y="408" font-size="12" fill="#7a2b2b">competition and are never committed.</text>

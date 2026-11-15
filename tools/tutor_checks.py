@@ -246,8 +246,11 @@ class FakeTutor:
                         f"{problem['options'][problem['label']]}.",
                 "detail": {}}
 
-    def first_problem(self, level=0, language="eng", seed=42):
+    def first_problem(self, level=0, language="eng", seed=42, topic=None):
         return self.problem
+
+    def topic_counts(self, language="eng"):
+        return [{"topic": "geometry", "count": 1}, {"topic": "arithmetic", "count": 1}]
 
     def next_problem(self, problem, correct, seen_ids=(), prefer_language=None, delta=None):
         other = CANDY if problem["id"] == "area" else PROBLEM
