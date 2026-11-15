@@ -23,6 +23,7 @@ import os
 import random
 import re
 import sqlite3
+import threading
 import time
 import unicodedata
 import urllib.error
@@ -1001,6 +1002,10 @@ class Session:
         self.solution = None
         self.pending = None
         self.last = None
+        # A new problem cancels the work on the old one and throws its hints
+        # away: nothing of the previous problem may be shown on this one.
+        self.hint_generation = getattr(self, "hint_generation", 0) + 1
+        self.hint_cache = {}
 
     def start(self, level=None, language=None, reset_profile=False, topic=None):
         self.level = int(self.level if level is None else level)
@@ -1044,6 +1049,37 @@ class Session:
     def _begin_problem(self):
         self.problem_index += 1
         self.problem_started = time.time()
+        self._warm_hints()
+
+    def _warm_hints(self):
+        """Think the three steps ahead, in the background, while the student reads.
+
+        The hints cost a fraction of a second for steps 1 and 2 and 5 to 20 s for
+        the model on step 3, so they are computed as soon as the problem appears
+        and kept in `hint_cache`. Asking for one is then immediate. Moving to
+        another problem bumps the generation, which stops the thread after the
+        call it is in and drops whatever it had: the cache never crosses problems.
+        """
+        self.hint_generation = getattr(self, "hint_generation", 0) + 1
+        token = self.hint_generation
+        self.hint_cache = {}
+        problem, language = self.problem, self.ui_language
+        if problem is None or self.finished:
+            return
+
+        def work():
+            for rung in (1, 2, 3):
+                if token != self.hint_generation:
+                    return
+                try:
+                    hint = self.tutor.hint(problem, rung, language)
+                except Exception:      # a failed step must not kill the warm-up
+                    continue
+                if token != self.hint_generation:
+                    return
+                self.hint_cache.setdefault(rung, hint)
+
+        threading.Thread(target=work, daemon=True, name="hint-warmup").start()
 
     def current_key(self):
         return key_of(self.problem) if self.problem else None
@@ -1235,10 +1271,12 @@ class Session:
             return {"error": f"ask for step {asked} first"}
         if asked == 4:
             return {"error": "the last step is the solution: press reveal"}
-        try:
-            hint = self.tutor.hint(self.problem, rung, self.ui_language)
-        except (OSError, urllib.error.URLError) as error:
-            return {"error": f"the model is not answering: {error}"}
+        hint = self.hint_cache.pop(rung, None)      # worked out when the problem came
+        if hint is None:
+            try:
+                hint = self.tutor.hint(self.problem, rung, self.ui_language)
+            except (OSError, urllib.error.URLError) as error:
+                return {"error": f"the model is not answering: {error}"}
         self.hints.append(hint)
         self.last = {"kind": "hint", "rung": hint["rung"], "status": hint["status"]}
         return self.state()
@@ -1283,6 +1321,9 @@ class Session:
         if not self.finished:
             self.finished = True
             self.pending = None
+            # Stop the warm-up: no hint is going to be asked for any more.
+            self.hint_generation += 1
+            self.hint_cache = {}
             from .report import build
             self.report = build(self)
         return self.state()
