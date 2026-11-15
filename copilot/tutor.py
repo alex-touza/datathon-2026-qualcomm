@@ -703,14 +703,16 @@ class Tutor:
             # the page; the ladder is better than the wrong language.
             if language_of(" ".join(cached)) not in (None, problem.get("language")):
                 cached = None
-        if cached:
+        if cached and rung <= 3:
             part1, part2, part3 = cached
-            if rung == 1:
-                text = part1
-            elif rung == 2:
-                text = "\n\n".join(part for part in (part1, part2) if part)
-            else:
-                text = "\n\n".join(part for part in (part1, part2, part3) if part)
+            # Each step shows only its own part. The page stacks the steps, so
+            # carrying step 1 into step 2 would read as a glitch, not a recap.
+            # A part missing from the row falls back to everything up to that
+            # step, never to a blank panel.
+            text = {1: part1, 2: part2, 3: part3}[rung]
+            if not text.strip():
+                upto = {1: (part1,), 2: (part1, part2), 3: (part1, part2, part3)}[rung]
+                text = "\n\n".join(part for part in upto if part)
             if text.strip():
                 return {"rung": rung, "kind": "solution", "text": text, "status": "ok",
                         "seconds": round(time.perf_counter() - start, 2),
