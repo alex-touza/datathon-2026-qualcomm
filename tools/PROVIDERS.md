@@ -93,3 +93,32 @@ tokens per row. Expect a different figure for Gemini; measure it with a small
 - Prefer the environment variable; `--api-key-file` exists for convenience.
 - There is no key for the board: generation is **build-time only**, and the
   board reads the finished DB offline.
+
+## Without an API key: coding agents as the model
+
+The same prompts can be answered by coding agents (e.g. Claude subagents) and
+then verified by exactly the same rules:
+
+```bash
+python3 tools/generate_solutions.py --text-only --limit-ids 100 \
+  --export-prompts /tmp/prompts.jsonl          # {key, system, prompt} per row
+# agents write {"key": ..., "response": {...the JSON the prompt asks for...}} lines
+python3 tools/generate_solutions.py --model sonnet-agent --name agents-v4 \
+  --import-responses out0.jsonl out1.jsonl ...
+```
+
+## Prompt v4: dyscalculia and dyslexia adaptation
+
+`--prompt-version v4` (the default) also asks for a number template, stored as
+JSON in the `adapt` column (`adapt_ok` / `adapt_reason` from
+`copilot.adapt.check_adaptation`):
+
+- `template`: the statement with every digit number as `{n1}`, `{n2}`, ...
+- `variables`: `{"n1": {"default": 12, "small": 3}}` — original and smaller values.
+- `answer_formula`: arithmetic over `n1..`; checked against the correct option
+  with the defaults. `answer_small` is computed by code, never by the model.
+- `steps_template`: the working with `{=n1+n2}` computed placeholders.
+- `dyslexia_template`: 3–6 short lines, same placeholders.
+
+`copilot.adapt.render(template, values)` fills either value set; it is standard
+library only, so the board can switch to small numbers without a model.

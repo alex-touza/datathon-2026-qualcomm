@@ -32,6 +32,7 @@ from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from copilot.adapt import check_adaptation  # noqa: E402
 from copilot.solutions import check_parts  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,8 +50,27 @@ CREATE TABLE IF NOT EXISTS solutions (
     prompt_version TEXT,
     verified INTEGER,
     reject_reason TEXT,
-    created_at REAL
+    created_at REAL,
+    adapt TEXT,
+    adapt_ok INTEGER,
+    adapt_reason TEXT
 )"""
+COLUMNS = ("key", "problem_id", "language", "level", "part1", "part2", "part3", "model",
+           "prompt_version", "verified", "reject_reason", "created_at",
+           "adapt", "adapt_ok", "adapt_reason")
+ADAPT_FIELDS = ("template", "variables", "answer_formula", "steps_template", "dyslexia_template")
+
+
+def open_db(path):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    db = sqlite3.connect(path)
+    db.execute(SCHEMA)
+    have = {row[1] for row in db.execute("PRAGMA table_info(solutions)")}
+    for column, kind in (("adapt", "TEXT"), ("adapt_ok", "INTEGER"), ("adapt_reason", "TEXT")):
+        if column not in have:
+            db.execute(f"ALTER TABLE solutions ADD COLUMN {column} {kind}")
+    db.commit()
+    return db
 
 
 def parse_args():
@@ -63,7 +83,7 @@ def parse_args():
     p.add_argument("--all", action="store_true", help="use every eligible id instead of a 200-id sample")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--name", default="solutions-v1")
-    p.add_argument("--prompt-version", default="v3")
+    p.add_argument("--prompt-version", default="v4")
     # Provider settings. Any OpenAI-compatible endpoint works; see tools/PROVIDERS.md.
     p.add_argument("--model", default="deepseek-v4-pro")
     p.add_argument("--base-url", default="https://api.deepseek.com")
@@ -92,6 +112,12 @@ def parse_args():
     p.add_argument("--max-spend", type=float, default=0.0,
                    help="stop after this much estimated spend (0 = no cap)")
     p.add_argument("--dry-run", action="store_true", help="print the prompt and selection; no API call")
+    p.add_argument("--text-only", action="store_true",
+                   help="only problems whose statement does not need the image")
+    p.add_argument("--export-prompts", default="",
+                   help="write the prompts of the rows to generate as JSONL and stop (no API call)")
+    p.add_argument("--import-responses", nargs="*", default=[],
+                   help="JSONL files of {key, response}: verify and store them instead of calling an API")
     return p.parse_args()
 
 
@@ -116,13 +142,15 @@ def clean_options(problem):
     return len(set(values)) == 5
 
 
-def load_eligible(path, languages, clean=True):
+def load_eligible(path, languages, clean=True, text_only=False):
     by_id = defaultdict(dict)
     with open(path) as handle:
         for line in handle:
             if not line.strip():
                 continue
             problem = json.loads(line)
+            if text_only and not problem.get("text_only"):
+                continue
             if problem.get("options") and (not clean or clean_options(problem)):
                 by_id[problem["id"]][problem["language"]] = problem
     return {pid: langs for pid, langs in by_id.items()
@@ -258,7 +286,9 @@ def request_json(args, system, prompt, image_b64=None, max_tokens=None):
     raise last
 
 
-def parse_parts(content):
+def parse_response(content):
+    if isinstance(content, dict):
+        return content
     text = (content or "").strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -270,27 +300,109 @@ def parse_parts(content):
         if start < 0 or end <= start:
             raise
         data = json.loads(text[start:end + 1])
+    return data
+
+
+def parse_parts(content):
+    data = parse_response(content)
     return {key: str(data.get(key, "")) for key in ("part1", "part2", "part3")}
+
+
+def verify_response(problem, data, strict_tail):
+    """(parts, ok, reason, adapt_json, adapt_ok, adapt_reason) for one parsed response."""
+    parts = {key: str(data.get(key, "")).strip() for key in ("part1", "part2", "part3")}
+    parts["part3"] = re.sub(r"\n\s*\n+", "\n", parts["part3"])  # no blank line before the answer
+    ok, reason = check_parts(problem, parts, strict_tail=strict_tail)
+    adapt = {key: data[key] for key in ADAPT_FIELDS if key in data}
+    if not adapt:
+        return parts, ok, reason, None, None, ""
+    adapt_ok, adapt_reason, small = check_adaptation(problem, adapt)
+    if adapt_ok and small is not None:
+        adapt["answer_small"] = small
+    return parts, ok, reason, json.dumps(adapt, ensure_ascii=False), int(adapt_ok), adapt_reason
+
+
+def store(db, args, row):
+    problem = row["problem"]
+    values = (row["key"], problem["id"], problem["language"], problem.get("level"),
+              row["part1"], row["part2"], row["part3"], args.model, args.prompt_version,
+              int(row["verified"]), "" if row["verified"] else row["reason"], time.time(),
+              row.get("adapt"), row.get("adapt_ok"), row.get("adapt_reason") or "")
+    db.execute(f"INSERT OR REPLACE INTO solutions ({', '.join(COLUMNS)}) "
+               f"VALUES ({', '.join('?' * len(COLUMNS))})", values)
+    db.commit()
+
+
+def import_responses(args, rows, strict_tail):
+    """Verify and store responses written elsewhere (e.g. by coding agents)."""
+    by_key = {p["id"] + "|" + p["language"]: p for p in rows}
+    # Responses may cover rows outside this selection; look them up in the input too.
+    with open(args.input) as handle:
+        for line in handle:
+            if line.strip():
+                problem = json.loads(line)
+                by_key.setdefault(problem["id"] + "|" + problem["language"], problem)
+    db = open_db(args.out)
+    review, counts = [], defaultdict(int)
+    for path in args.import_responses:
+        with open(path, encoding="utf-8") as handle:
+            for number, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                    problem = by_key[record["key"]]
+                    data = parse_response(record.get("response", record))
+                    parts, ok, reason, adapt, adapt_ok, adapt_reason = verify_response(
+                        problem, data, strict_tail)
+                except Exception as error:  # noqa: BLE001 - report the line, keep going
+                    print(f"{path}:{number}: skipped ({type(error).__name__}: {error})")
+                    counts["unreadable"] += 1
+                    continue
+                row = {**problem, "problem": problem, "key": record["key"], **parts,
+                       "verified": ok, "reason": reason, "adapt": adapt,
+                       "adapt_ok": adapt_ok, "adapt_reason": adapt_reason}
+                store(db, args, row)
+                review.append(row)
+                counts["rows"] += 1
+                counts["verified"] += int(ok)
+                counts["adapt_ok"] += int(bool(adapt_ok))
+                print(f"{record['key']}: {'OK' if ok else 'REJECT ' + reason}"
+                      f" | adapt {'OK' if adapt_ok else 'REJECT ' + (adapt_reason or 'missing')}")
+    db.close()
+    os.makedirs("results", exist_ok=True)
+    review_path = f"results/solutions-review-{args.name}.csv"
+    with open(review_path, "w", newline="", encoding="utf-8") as handle:
+        fields = ["key", "id", "language", "level", "text", "part1", "part2", "part3",
+                  "verified", "reason", "adapt", "adapt_ok", "adapt_reason"]
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(review)
+    print(f"\n{counts['rows']} rows imported: {counts['verified']} solutions verified, "
+          f"{counts['adapt_ok']} adaptations verified, {counts['unreadable']} unreadable"
+          f"\nWrote {args.out}\nReview: {review_path}")
 
 
 def main():
     args = parse_args()
     languages = [lang.strip() for lang in args.languages.split(",") if lang.strip()]
-    eligible = load_eligible(args.input, languages, clean=not args.include_messy)
+    eligible = load_eligible(args.input, languages, clean=not args.include_messy,
+                             text_only=args.text_only)
     rows = select_rows(eligible, languages, 0 if args.all else args.limit_ids, args.seed)
     print(f"{len(eligible)} eligible ids; selected {len(rows)} rows "
           f"({len({r['id'] for r in rows})} ids, {languages})", flush=True)
 
     if args.dry_run:
-        system, template = read_prompt()
+        system, template = read_prompt(args.prompt_version)
         print("\n=== SYSTEM ===\n" + system)
         print("\n=== USER ===\n" + format_prompt(template, rows[0]))
         return
 
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    db = sqlite3.connect(args.out)
-    db.execute(SCHEMA)
-    db.commit()
+    strict_tail = args.prompt_version in ("v3", "v4")
+    if args.import_responses:
+        import_responses(args, rows, strict_tail)
+        return
+    db = open_db(args.out)
     existing = {(key, verified) for key, verified in db.execute("SELECT key, verified FROM solutions")}
     if args.force:
         existing = set()
@@ -303,6 +415,15 @@ def main():
     todo = [p for p in rows if p["id"] + "|" + p["language"] not in known
             or (args.retry_failed and p["id"] + "|" + p["language"] in failed)]
     print(f"{len(todo)} rows to generate", flush=True)
+    if args.export_prompts:
+        with open(args.export_prompts, "w", encoding="utf-8") as handle:
+            for problem in todo:
+                handle.write(json.dumps({"key": problem["id"] + "|" + problem["language"],
+                                         "system": system,
+                                         "prompt": format_prompt(template, problem)},
+                                        ensure_ascii=False) + "\n")
+        print(f"Wrote {len(todo)} prompts to {args.export_prompts}")
+        return
 
     def work(problem):
         key = problem["id"] + "|" + problem["language"]
@@ -316,6 +437,7 @@ def main():
                 prompt = ("The problem includes the attached image; use it as part of "
                           "the problem.\n\n" + prompt)
         parts, reason = None, ""
+        adapt, adapt_ok, adapt_reason = None, None, ""
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0,
                  "finish": "", "budget": args.max_tokens}
         budget = args.max_tokens
@@ -332,9 +454,8 @@ def main():
                 content = message_text(choice.get("message") or {})
                 truncated = str(usage["finish"]).lower() in ("length", "max_tokens")
                 if content.strip() and not truncated:
-                    parts = parse_parts(content)
-                    ok, reason = check_parts(problem, parts,
-                                             strict_tail=args.prompt_version == "v3")
+                    parts, ok, reason, adapt, adapt_ok, adapt_reason = verify_response(
+                        problem, parse_response(content), strict_tail)
                     break
                 if attempt == 0:
                     # The hidden reasoning ate the whole budget and the JSON came
@@ -349,7 +470,8 @@ def main():
             ok, reason = False, f"{type(error).__name__}: {error}"
             parts = parts or {"part1": "", "part2": "", "part3": ""}
         return {**problem, "problem": problem, "key": key, **parts,
-                "verified": ok, "reason": reason, "usage": usage}
+                "verified": ok, "reason": reason, "usage": usage,
+                "adapt": adapt, "adapt_ok": adapt_ok, "adapt_reason": adapt_reason}
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
         done = 0
@@ -365,12 +487,7 @@ def main():
                 problem, key = row["problem"], row["key"]
                 spent += (row["usage"]["prompt_tokens"] * args.price_in
                           + row["usage"]["completion_tokens"] * args.price_out) / 1e6
-                db.execute(
-                    "INSERT OR REPLACE INTO solutions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (key, problem["id"], problem["language"], problem.get("level"),
-                     row["part1"], row["part2"], row["part3"], args.model, args.prompt_version,
-                     int(row["verified"]), "" if row["verified"] else row["reason"], time.time()))
-                db.commit()
+                store(db, args, row)
                 review.append(row)
                 usage_rows.append({"key": key, "verified": int(row["verified"]),
                                    **row["usage"]})
