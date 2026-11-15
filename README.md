@@ -1,5 +1,7 @@
 # MindDragon — an offline maths copilot on the Arduino UNO Q
 
+![MindDragon web interface](docs/minddragon-screenshot.png)
+
 ## What it does
 
 A small maths tutor that runs entirely on an Arduino UNO Q 4 GB, with no network
