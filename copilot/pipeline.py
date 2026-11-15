@@ -21,12 +21,14 @@ ALPHA = float(CONFIG.get("CALIBRATION_ALPHA") or 0)
 
 
 def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL,
-          time_limit=TIME_LIMIT):
+          time_limit=TIME_LIMIT, alpha=None):
     """Return {"answer", "seconds", "status", ...} for one problem.
 
     index and k turn on retrieval: the k most similar solved problems are
     added to the prompt as examples. Each example costs reading time.
     image_b64 and llm_url send the problem image to a vision server.
+    alpha overrides CALIBRATION_ALPHA for one run, so a value can be tried
+    without editing config.env.
     """
     start = time.perf_counter()
     result = {"answer": FALLBACK, "status": "ok", "prompt_tokens": 0, "retrieved": "",
@@ -43,7 +45,8 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
                                          image_b64=image_b64, url=llm_url)
         letter = max(scores, key=scores.get)
         # If the server sent no scores, keep exactly what the model wrote.
-        result["answer"] = choose(scores, fallback=letter, alpha=ALPHA) if scores else letter
+        weight = ALPHA if alpha is None else alpha
+        result["answer"] = choose(scores, fallback=letter, alpha=weight) if scores else letter
         result["confidence"] = round(confidence(scores, result["answer"]), 4)
         result["scores"] = compact(scores)
         result["prompt_tokens"] = timings.get("prompt_n", 0)
@@ -54,5 +57,9 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
             result["status"] = "timeout"
         else:
             result["status"] = f"error: {error.reason}"
+    except (RuntimeError, KeyError, ValueError) as error:
+        # A server without logprobs must not break the one-letter contract:
+        # answer the fallback letter and say why in the status.
+        result["status"] = f"error: {error}"
     result["seconds"] = round(time.perf_counter() - start, 2)
     return result

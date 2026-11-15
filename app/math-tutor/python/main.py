@@ -63,6 +63,7 @@ if not os.path.exists(INDEX):
 
 TUTOR = Tutor(Index(INDEX), profile_path=PROFILE, images=IMAGES, solutions_path=SOLUTIONS)
 SESSION = Session(TUTOR, level=0, language="eng")
+INDEX_IDS = {p["id"] for p in TUTOR.by_key.values()}
 
 ACTION_LOCK = threading.Lock()
 BUSY = {"on": False, "label": ""}
@@ -257,8 +258,11 @@ def api_next(key):
 
 def api_image(key):
     key = key.rsplit(".", 1)[0]
+    # The page may ask for the twin of the problem text in its own language.
+    if key.rsplit("_", 1)[0] not in INDEX_IDS:
+        return {"error": "no image"}
     path = os.path.join(IMAGES, key + ".png")
-    if key not in TUTOR.by_key or not os.path.exists(path):
+    if not os.path.exists(path):
         return {"error": "no image"}
     with open(path, "rb") as handle:
         raw = handle.read()

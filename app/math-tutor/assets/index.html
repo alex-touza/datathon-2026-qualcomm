@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Math tutor</title>
+<title>MindDragon</title>
 <style>
   :root {
     --ink: #14202e;
@@ -12,12 +12,28 @@
     --paper: #f6f8fa;
     --card: #ffffff;
     --accent: #0b6bcb;
+    --accent-soft: #eaf2fd;
     --good: #137a3f;
     --good-bg: #e7f6ec;
     --bad: #b3261e;
     --bad-bg: #fdeceb;
     --warn: #8a5a00;
     --warn-bg: #fff6df;
+  }
+  body.dark {
+    --ink: #e6edf6;
+    --muted: #9fb0c3;
+    --line: #2a3a4b;
+    --paper: #0b131b;
+    --card: #141f2a;
+    --accent: #59a7ff;
+    --accent-soft: #1a2e44;
+    --good: #57d68b;
+    --good-bg: #10261a;
+    --bad: #ff8a80;
+    --bad-bg: #2a1514;
+    --warn: #ffcf70;
+    --warn-bg: #2a2110;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -32,8 +48,12 @@
   .chip {
     font-size: 13px; padding: 3px 10px; border-radius: 999px;
     background: #e8eef5; color: var(--muted); border: 1px solid var(--line);
+    display: inline-flex; align-items: center; line-height: 1.35;
+    max-width: 100%; white-space: normal; overflow-wrap: anywhere;
   }
-  .chip.strong { background: #eaf2fd; border-color: #bcd6f7; color: var(--accent); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chips .chip { flex: 0 1 auto; }
+  .chip.strong { background: var(--accent-soft); border-color: #bcd6f7; color: var(--accent); font-weight: 600; }
   .spacer { flex: 1; }
   .grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 18px; }
   @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } body { padding: 16px 12px 56px; } }
@@ -45,8 +65,19 @@
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
        margin: 0 0 10px; font-weight: 700; }
   .problem { white-space: pre-wrap; font-size: 19px; line-height: 1.6; }
-  .problem img { display: block; max-width: 100%; margin: 14px 0 4px; border-radius: 10px;
-                 border: 1px solid var(--line); background: #fff; }
+  .problem.image-only { margin-top: 0; }
+  .problem img { display: block; width: calc(100% + 24px); max-width: calc(100% + 24px);
+                 max-height: 78vh; object-fit: contain; margin: 14px -12px 6px;
+                 border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+  /* With an image there is no heading and no padding above it: the statement
+     starts at the top edge of the card and uses the full width. */
+  .card.image-mode { padding-top: 0; }
+  .card.image-mode #h-problem { display: none; }
+  .card.image-mode .problem { margin: 0; }
+  .card.image-mode .problem img {
+    width: calc(100% + 40px); max-width: calc(100% + 40px); max-height: 84vh;
+    margin: 0 -20px 0; border-radius: 13px 13px 0 0; border-width: 0 0 1px 0;
+  }
   .options { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
   .options button {
     width: 100%; display: flex; gap: 12px; align-items: flex-start; text-align: left;
@@ -59,21 +90,40 @@
   .options .letter {
     flex: none; width: 30px; height: 30px; border-radius: 50%;
     display: grid; place-items: center; font-weight: 700;
-    background: #eaf2fd; color: var(--accent); font-size: 15px;
+    background: var(--accent-soft); color: var(--accent); font-size: 15px;
   }
   .options button.chosen { border-color: #8fa6bd; background: #eef2f6; }
   .options button.right { border-color: var(--good); background: var(--good-bg); }
   .options button.right .letter { background: var(--good); color: #fff; }
-  .options button.wrong { border-color: var(--bad); background: var(--bad-bg); }
+  .options button.wrong { border-color: var(--bad); background: var(--bad-bg); opacity: .45; }
   .options button.wrong .letter { background: var(--bad); color: #fff; }
+  .options button.cooling, .options button.action.cooling { opacity: .5; }
+  .retry { min-height: 20px; margin: 8px 0 0; font-size: 14px; color: var(--muted); }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
   button.action {
     font: inherit; font-weight: 600; cursor: pointer; border-radius: 11px;
-    padding: 11px 16px; border: 1.5px solid var(--line); background: #fff; color: var(--ink);
+    padding: 11px 16px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
   }
+  button.action:hover:not(:disabled) { border-color: var(--accent); }
   button.action.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.action.quiet { color: var(--muted); }
+  button.action.quiet { color: var(--muted); background: var(--card); }
+  button.action.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
   button.action:disabled { opacity: .45; cursor: not-allowed; }
+  /* The hint button: solid and gently pulsing when a hint is ready, translucent
+     while the cool-down is running, so the wait is visible at a glance. */
+  #hint { transition: opacity .35s ease, background .35s ease, color .35s ease,
+                      border-color .35s ease, box-shadow .35s ease; }
+  #hint.ready {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    animation: ready 2.6s ease-in-out infinite;
+  }
+  #hint.ready:hover:not(:disabled) { filter: brightness(1.08); }
+  #hint.cooling { opacity: .38; background: var(--paper); color: var(--muted);
+                  border-color: var(--line); box-shadow: none; animation: none; }
+  @keyframes ready {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(11, 107, 203, .34); }
+    50%      { box-shadow: 0 0 0 7px rgba(11, 107, 203, 0); }
+  }
   .hint { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px;
           padding: 12px 14px; margin-bottom: 10px; background: #fbfdff; }
   .hint.model { border-left-color: #7a4bc4; background: #fbf8ff; }
@@ -83,6 +133,8 @@
   .hint .rung .time { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; }
   .hint p { margin: 6px 0 0; white-space: pre-wrap; }
   .empty { color: var(--muted); font-size: 15px; }
+  .notice { color: var(--warn); background: var(--warn-bg); border: 1px solid #f0dcae;
+            border-radius: 9px; padding: 8px 12px; font-size: 14px; margin: 12px 0 0; }
   .banner { border-radius: 12px; padding: 14px 16px; margin-top: 16px; border: 1px solid; }
   .banner.good { background: var(--good-bg); border-color: #bfe4cd; }
   .banner.bad { background: var(--bad-bg); border-color: #f3c9c6; }
@@ -105,17 +157,53 @@
            animation: pulse 1s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
   .flash { min-height: 22px; color: var(--bad); font-weight: 600; font-size: 15px; }
+
+  /* Dark mode: the moon button at the top flips these; the preference is kept
+     in the browser, and the page starts in the system colour scheme. */
+  body.dark .chip { background: #1b2938; }
+  body.dark .chip.strong { background: var(--accent-soft); border-color: #35608e; }
+  body.dark .options button { background: #101a24; }
+  body.dark .options button:hover:not(:disabled) { background: #16283a; border-color: #4a6a8a; }
+  body.dark .options button.chosen { background: #1c2a37; border-color: #5b7186; }
+  body.dark .hint { background: #101a24; }
+  body.dark .hint.model { background: #1b1626; }
+  body.dark .hint.rejected { background: var(--warn-bg); }
+  body.dark .banner.solution { background: #10261a; border-color: #255c3a; }
+  body.dark .banner.good { border-color: #255c3a; }
+  body.dark .banner.bad { border-color: #6a2a26; }
+  body.dark .notice { border-color: #5a4a1e; }
+  body.dark #hint.cooling { background: #1a2430; color: var(--muted); }
+  body.dark .dot { background: #3a4a5a; }
+  body.dark .card { box-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+  body.dark .problem img { background: #fff; }
+  body.dark button.action.primary, body.dark #hint.ready { color: #06131f; }
+  button.action.icon-btn { display: inline-flex; align-items: center; justify-content: center;
+                           width: 46px; height: 46px; padding: 0; border: 0; color: var(--ink); }
+  .icon-btn svg { display: block; width: 36px; height: 36px; }  .icon-btn svg.icon-sun { display: none; }
+  body.dark .icon-btn svg.icon-sun { display: block; }
+  body.dark .icon-btn svg.icon-moon { display: none; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Math tutor</h1>
+    <h1 id="title">MindDragon</h1>
     <span class="chip strong" id="level">level –</span>
     <span class="chip" id="topic">topic –</span>
     <span class="chip" id="progress">0 right / 0</span>
     <span class="spacer"></span>
     <span class="busy" id="busy"><span class="pulse"></span>thinking…</span>
+    <button class="action icon-btn" id="theme" type="button" aria-label="Dark mode" title="Dark mode">
+      <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/>
+      </svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.1" fill="currentColor"/>
+        <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M12 2.2v2.1M12 19.7v2.1M2.2 12h2.1M19.7 12h2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M19.1 4.9l-1.5 1.5M6.4 17.6l-1.5 1.5"/>
+        </g>
+      </svg>
+    </button>
     <button class="action quiet" id="lang-en">English</button>
     <button class="action quiet" id="lang-ca">Català</button>
   </header>
@@ -123,12 +211,14 @@
   <div class="grid">
     <section>
       <div class="card">
-        <h2>Problem</h2>
+        <h2 id="h-problem">Problem</h2>
         <div class="problem">
           <span id="text">Loading…</span>
-          <img id="figure" alt="Figure for this problem" hidden>
+          <img id="figure" alt="" hidden>
         </div>
+        <p class="notice" id="notice" hidden></p>
         <ul class="options" id="options"></ul>
+        <p class="retry" id="retry"></p>
         <div id="result-banner"></div>
         <div class="actions">
           <button class="action primary" id="next" disabled>Next problem</button>
@@ -140,19 +230,19 @@
 
     <aside>
       <div class="card">
-        <h2>Help, one rung at a time</h2>
+        <h2 id="h-help">Help, one step at a time</h2>
         <div id="hints"><p class="empty">No hints yet. Try the problem first: help is here when you want it.</p></div>
         <div class="actions">
           <button class="action" id="hint" disabled>Ask for a hint</button>
         </div>
       </div>
       <div class="card">
-        <h2>What you have practised</h2>
+        <h2 id="h-profile">What you have practised</h2>
         <div id="profile"><p class="empty">Nothing yet. Your profile stays on the board.</p></div>
       </div>
       <div class="card">
-        <h2>How this works</h2>
-        <p class="empty" id="explain">
+        <h2 id="h-how">How this works</h2>
+        <p class="empty" id="how">
           The board checks your answer against M3Kang's own solution. Hints climb a ladder:
           a similar solved problem, then the method, then one short sentence from the small
           model, which is checked in code before you see it. The solution only appears if you ask for it.
@@ -162,28 +252,239 @@
   </div>
 
   <div class="footer">
-    <span><span class="dot" id="dot-llm"></span>language model</span>
-    <span><span class="dot" id="dot-embed"></span>embeddings</span>
-    <span>Offline. Nothing leaves the board. Keys: A–E answer, H hint, N next.</span>
+    <span><span class="dot" id="dot-llm"></span><span id="footer-llm">language model</span></span>
+    <span><span class="dot" id="dot-embed"></span><span id="footer-embed">embeddings</span></span>
+    <span id="footer-help">Offline. Nothing leaves the board. Keys: A–E answer, H hint, N next.</span>
   </div>
 </main>
 
 <script>
   "use strict";
+
+  // ---------------------------------------------------------------------
+  // All the text the page draws, in both languages. Anything the backend
+  // writes (hints, diagnosis, solution) is already translated there.
+  // ---------------------------------------------------------------------
+  const TOPIC_NAMES = {
+    eng: {counting: "counting", probability: "probability", geometry: "geometry",
+          fractions: "fractions", number_theory: "number theory", measurement: "measurement",
+          money: "money", time: "time", statistics: "statistics", rate: "rate",
+          algebra: "algebra", patterns: "patterns", logic: "logic", arithmetic: "arithmetic",
+          general: "general"},
+    cat: {counting: "recompte", probability: "probabilitat", geometry: "geometria",
+          fractions: "fraccions", number_theory: "teoria de nombres", measurement: "mesures",
+          money: "diners", time: "temps", statistics: "estadística", rate: "proporcions",
+          algebra: "àlgebra", patterns: "patrons", logic: "lògica", arithmetic: "aritmètica",
+          general: "general"},
+  };
+
+  const I18N = {
+    eng: {
+      title: "MindDragon",
+      darkMode: "Dark mode",
+      lightMode: "Light mode",
+      level: (n) => n === null || n === undefined ? "level –" : "level " + n,
+      topic: (key) => key ? "topic · " + (TOPIC_NAMES.eng[key] || key) : "topic –",
+      progress: (right, tries) => right + " right / " + tries,
+      thinking: "thinking…",
+      busyChecking: "checking…",
+      busyHint: "looking for a hint…",
+      busyNext: "finding the next problem…",
+      busyReveal: "reading the solution…",
+      busyLang: "loading problems…",
+      problem: "Problem",
+      loading: "Loading…",
+      noProblem: "No problem on screen.",
+      figureAlt: "Problem statement and options",
+      optionsInPicture: "The options for this problem are in the picture. Answer A–E once you have read them.",
+      next: "Next problem",
+      reveal: "Show the solution",
+      revealArm: "Really show the solution?",
+      help: "Help, one step at a time",
+      hintsEmpty: "No hints yet. Try the problem first: help is here when you want it.",
+      askHint: (n) => "Ask for hint " + n + " of 3",
+      hintWait: (s) => "Next hint in " + s + " s",
+      hintNone: "No more hints",
+      rungs: {1: "Step 1 · a similar solved problem",
+              2: "Step 2 · the method",
+              3: "Step 3 · one sentence from the model",
+              4: "Step 4 · the solution"},
+      retryIn: (s) => "You can try another option in " + s + " s",
+      tryAnother: "Not yet. Try another option.",
+      rejected: "The model's sentence repeated the answer, so the checker replaced it. ",
+      unavailable: "The model is not answering, so here is the method instead. ",
+      local: "The model did not answer in the page's language, so here is the method instead. ",
+      profileTitle: "What you have practised",
+      profileEmpty: "Nothing yet. Your profile stays on the board.",
+      profileLine: (right, tries) => right + " right out of " + tries + " attempts, kept in SQLite on the board.",
+      how: "How this works",
+      howText: "The board checks your answer against M3Kang's own solution. Hints come one step " +
+               "at a time: a similar solved problem, then the method, then one short sentence from " +
+               "the small model, which is checked in code before you see it. The solution only " +
+               "appears if you ask for it.",
+      correct: "Correct",
+      notThis: "Not this one",
+      whatToCheck: "what to check: ",
+      tags: {one_step: "a combination of numbers", from_text: "a number from the problem",
+             digit_swap: "the order of the digits", off_by_one: "one item too many or too few",
+             power_of_ten: "a factor of ten", double: "double the quantity",
+             half: "half the quantity", sign: "the direction", unit: "the unit"},
+      footerLlm: "language model",
+      footerEmbed: "embeddings",
+      footerHelp: "Offline. Nothing leaves the board. Keys: A–E answer, H hint, N next.",
+      boardDown: "The board did not answer: ",
+      foreignProblem: (name) => "The question bank has no English version of this problem yet; its text is in " + name + ".",
+    },
+    cat: {
+      title: "MindDragon",
+      darkMode: "Mode fosc",
+      lightMode: "Mode clar",
+      level: (n) => n === null || n === undefined ? "nivell –" : "nivell " + n,
+      topic: (key) => key ? "tema · " + (TOPIC_NAMES.cat[key] || key) : "tema –",
+      progress: (right, tries) => right + " encerts / " + tries,
+      thinking: "pensant…",
+      busyChecking: "comprovant…",
+      busyHint: "buscant una pista…",
+      busyNext: "buscant el problema següent…",
+      busyReveal: "llegint la solució…",
+      busyLang: "carregant problemes…",
+      problem: "Problema",
+      loading: "Carregant…",
+      noProblem: "No hi ha cap problema a la pantalla.",
+      figureAlt: "Enunciat i opcions del problema",
+      optionsInPicture: "Les opcions d'aquest problema són a la imatge. Respon A–E quan les hagis llegides.",
+      next: "Problema següent",
+      reveal: "Mostra la solució",
+      revealArm: "Segur que vols veure la solució?",
+      help: "Ajuda, un pas a la vegada",
+      hintsEmpty: "Encara no hi ha pistes. Prova el problema primer: l'ajuda és aquí quan la vulguis.",
+      askHint: (n) => "Demana la pista " + n + " de 3",
+      hintWait: (s) => "Propera pista en " + s + " s",
+      hintNone: "No hi ha més pistes",
+      rungs: {1: "Pas 1 · un problema semblant ja resolt",
+              2: "Pas 2 · el mètode",
+              3: "Pas 3 · una frase del model",
+              4: "Pas 4 · la solució"},
+      retryIn: (s) => "Pots provar una altra opció en " + s + " s",
+      tryAnother: "Encara no. Prova una altra opció.",
+      rejected: "La frase del model repetia la resposta, així que el comprovador l'ha substituïda. ",
+      unavailable: "El model no respon, així que aquí tens el mètode. ",
+      local: "El model no ha respost en català, així que aquí tens el mètode. ",
+      profileTitle: "Què has practicat",
+      profileEmpty: "Encara res. El teu perfil es queda a la placa.",
+      profileLine: (right, tries) => right + " encerts de " + tries + " intents, desats en SQLite a la placa.",
+      how: "Com funciona",
+      howText: "La placa comprova la teva resposta amb la solució de M3Kang. Les pistes arriben " +
+               "d'un pas a la vegada: un problema semblant ja resolt, després el mètode, i després " +
+               "una frase curta del model petit, que es comprova en codi abans de mostrar-se. " +
+               "La solució només surt si la demanes.",
+      correct: "Correcte",
+      notThis: "Aquesta no és",
+      whatToCheck: "què cal revisar: ",
+      tags: {one_step: "una combinació de nombres", from_text: "un nombre del problema",
+             digit_swap: "l'ordre de les xifres", off_by_one: "una unitat de més o de menys",
+             power_of_ten: "un factor de deu", double: "el doble de la quantitat",
+             half: "la meitat de la quantitat", sign: "la direcció", unit: "la unitat"},
+      footerLlm: "model de llenguatge",
+      footerEmbed: "embeddings",
+      footerHelp: "Fora de línia. Res no surt de la placa. Tecles: A–E resposta, H pista, N següent.",
+      boardDown: "La placa no ha respost: ",
+      foreignProblem: (name) => "El banc de problemes encara no té aquest problema en català; el text és en " + name + ".",
+    },
+  };
+
+  // A few backend errors are English; translate the ones a student can hit.
+  const ERROR_PATTERNS = [
+    [/^that problem is not on screen$/i, "Aquest problema ja no és a la pantalla."],
+    [/^this problem is already solved; press next$/i, "Aquest problema ja està resolt; prem «Problema següent»."],
+    [/^this problem is already checked; press next$/i, "Aquest problema ja està comprovat; prem «Problema següent»."],
+    [/^the solution is showing; press next$/i, "La solució ja es mostra; prem «Problema següent»."],
+    [/^you already tried that option; choose another one$/i, "Ja has provat aquesta opció; tria'n una altra."],
+    [/^choose A to E$/i, "Tria una lletra de la A a la E."],
+    [/^no problem is on screen$/i, "No hi ha cap problema a la pantalla."],
+    [/^the last step is the solution: press reveal$/i, "L'últim pas és la solució: prem «Mostra la solució»."],
+    [/^already revealed$/i, "La solució ja està a la pantalla."],
+    [/^no more problems$/i, "No queden més problemes."],
+    [/^ask for step (\d+) first$/i, (m) => "Demana primer el pas " + m[1] + "."],
+    [/^the model is not answering: (.*)$/i, (m) => "El model no respon: " + m[1]],
+  ];
+
+  function translateError(message) {
+    if (lang !== "cat" || !message) return message;
+    for (const [pattern, replacement] of ERROR_PATTERNS) {
+      if (pattern.test(message)) {
+        return typeof replacement === "function"
+          ? message.replace(pattern, replacement)
+          : replacement;
+      }
+    }
+    return message;
+  }
+
   const RUNGS = {
-    1: {title: "Rung 1 · a similar solved problem", cls: ""},
-    2: {title: "Rung 2 · the method", cls: ""},
-    3: {title: "Rung 3 · one sentence from the model", cls: "model"},
-    4: {title: "Rung 4 · the solution", cls: ""},
+    1: {cls: ""},
+    2: {cls: ""},
+    3: {cls: "model"},
+    4: {cls: ""},
   };
   let state = null;
+  let lang = "eng";
   let busy = false;
   let revealArmed = false;
   let revealTimer = null;
+  let cooldownUntil = 0;
+  let answerCooldownUntil = 0;
+  let lastKey = null;
   const imageCache = new Map();
 
   const el = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+  const T = () => I18N[lang] || I18N.eng;
+
+  function cooldownLeft() {
+    return Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+  }
+
+  function startCooldown() {
+    const seconds = Number((state && state.hint_cooldown) || 0);
+    if (seconds > 0) cooldownUntil = Date.now() + seconds * 1000;
+    renderHintButton();
+  }
+
+  function answerLeft() {
+    return Math.max(0, Math.ceil((answerCooldownUntil - Date.now()) / 1000));
+  }
+
+  function startAnswerCooldown() {
+    const seconds = Number((state && state.answer_cooldown) || 0);
+    if (seconds > 0) answerCooldownUntil = Date.now() + seconds * 1000;
+  }
+
+  function isSolved() {
+    return !!(state && (state.correct === true || state.revealed));
+  }
+
+  /** True while a wrong answer has locked the remaining options for a moment. */
+  function answerWaiting() {
+    return !!(state && state.answered && state.correct === false && !state.revealed
+              && answerLeft() > 0);
+  }
+
+  const THEME_KEY = "minddragon-theme";
+  let darkMode = (() => {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved) return saved === "dark";
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  })();
+
+  function applyTheme() {
+    document.body.classList.toggle("dark", darkMode);
+    const button = el("theme");
+    if (!button) return;
+    button.setAttribute("aria-pressed", String(darkMode));
+    button.title = darkMode ? T().lightMode : T().darkMode;
+    button.setAttribute("aria-label", button.title);
+  }
 
   /** Images come as base64 over the same JSON API, so one page works on both servers. */
   async function loadImage(key) {
@@ -204,13 +505,13 @@
   }
 
   function flash(message) {
-    el("flash").textContent = message || "";
+    el("flash").textContent = translateError(message) || "";
   }
 
   function setBusy(on, label) {
     busy = on;
     el("busy").classList.toggle("on", on);
-    el("busy").lastChild.textContent = " " + (label || "thinking…");
+    el("busy").lastChild.textContent = " " + (label || T().thinking);
     render();   // disables the buttons while a hint or an answer is in flight
   }
 
@@ -223,11 +524,12 @@
   async function act(path, label) {
     if (busy) return;
     flash("");
-    setBusy(true, label || "thinking…");
+    setBusy(true, label || T().thinking);
+    let failed = false;
     try {
       const response = await fetch(path, {cache: "no-store"});
       const body = await response.json();
-      if (body && body.error) flash(body.error);
+      if (body && body.error) { flash(body.error); failed = true; }
       for (let i = 0; i < 120; i += 1) {
         const next = await fetchState();
         state = next;
@@ -235,10 +537,19 @@
         await sleep(400);
       }
     } catch (error) {
-      flash("The board did not answer: " + error);
+      flash(T().boardDown + error);
+      failed = true;
     } finally {
       setBusy(false);
       render();
+      // Each hint locks the next one for a few seconds; a failed request does not.
+      if (!failed && path.indexOf("/api/hint/") === 0) startCooldown();
+      // A wrong letter locks the other options for a moment before the retry.
+      if (!failed && path.indexOf("/api/answer/") === 0
+          && state && state.answered && state.correct === false && !state.revealed) {
+        startAnswerCooldown();
+      }
+      updateOptions();
     }
   }
 
@@ -248,33 +559,42 @@
     const problem = state.problem;
     if (!problem) return;
     const options = problem.options || {};
-    const letters = Object.keys(options).sort();
+    // If the image is in another language than the OCR options (the Catalan
+    // twin of an English problem, for instance), the options cannot be mixed:
+    // the image carries them, so only the letter buttons are shown.
+    const imageOnly = !!(problem.image && problem.image_language && problem.language
+                         && problem.image_language !== problem.language);
+    const letters = imageOnly ? [] : Object.keys(options).sort();
     const revealed = state.revealed ? state.revealed_label : null;
+    const tried = new Set((state.attempts || []).map((a) => a.choice));
+    const solved = isSolved();
     for (const letter of letters) {
       const item = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.disabled = busy || state.answered || state.revealed;
+      button.dataset.letter = letter;
       const mark = document.createElement("span");
       mark.className = "letter";
       mark.textContent = letter;
       const value = document.createElement("span");
       value.textContent = options[letter];
       button.append(mark, value);
-      if (state.chosen === letter) {
-        button.classList.add("chosen");
-        if (state.correct === true) button.classList.add("right");
-        if (state.correct === false) button.classList.add("wrong");
+      if (tried.has(letter)) button.classList.add("chosen");
+      if (tried.has(letter) && !(state.correct === true && state.chosen === letter)) {
+        button.classList.add("wrong");
       }
-      if (revealed && letter === revealed) button.classList.add("right");
-      button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, "checking…");
+      if ((state.correct === true && state.chosen === letter) || (revealed && letter === revealed)) {
+        button.classList.add("right");
+        button.classList.remove("wrong");
+      }
+      button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, T().busyChecking);
       item.append(button);
       list.append(item);
     }
     if (!letters.length) {
       const note = document.createElement("li");
       note.className = "empty";
-      note.textContent = "The options for this problem are in the picture. Answer A–E once you have read them.";
+      note.textContent = T().optionsInPicture;
       list.append(note);
       const row = document.createElement("li");
       row.style.display = "flex";
@@ -282,13 +602,37 @@
       row.style.flexWrap = "wrap";
       for (const letter of ["A", "B", "C", "D", "E"]) {
         const button = document.createElement("button");
-        button.className = "action";
+        button.className = "action letter-choice";
+        button.dataset.letter = letter;
         button.textContent = letter;
-        button.disabled = busy || state.answered || state.revealed;
-        button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, "checking…");
+        button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, T().busyChecking);
         row.append(button);
       }
       list.append(row);
+    }
+    updateOptions();
+  }
+
+  /** Disable the options that cannot be tried yet, and mark the wait visually. */
+  function updateOptions() {
+    const waiting = answerWaiting();
+    const solved = isSolved();
+    const tried = new Set(((state && state.attempts) || []).map((a) => a.choice));
+    for (const button of el("options").querySelectorAll("button[data-letter]")) {
+      const letter = button.dataset.letter;
+      const spent = tried.has(letter) && !(state && state.correct === true && state.chosen === letter);
+      button.disabled = busy || solved || (state && state.answered && (waiting || spent));
+      button.classList.toggle("cooling", waiting && !solved);
+    }
+    const retry = el("retry");
+    if (!state || solved) {
+      retry.textContent = "";
+    } else if (waiting) {
+      retry.textContent = T().retryIn(answerLeft());
+    } else if (state.answered) {
+      retry.textContent = T().tryAnother;
+    } else {
+      retry.textContent = "";
     }
   }
 
@@ -308,16 +652,14 @@
     const banner = document.createElement("div");
     banner.className = "banner " + (state.correct ? "good" : "bad");
     const title = document.createElement("b");
-    title.textContent = state.correct ? "Correct" : "Not this one";
+    title.textContent = state.correct ? T().correct : T().notThis;
     banner.append(title);
     if (!state.correct && state.diagnosis) {
       const tag = document.createElement("div");
       tag.className = "tag";
-      const tagLabels = {one_step: "a combination of numbers", from_text: "a number from the problem"};
-      const tagText = state.diagnosis.tag
-        ? (tagLabels[state.diagnosis.tag] || state.diagnosis.tag.replace(/_/g, " "))
-        : "the last sentence";
-      tag.textContent = "what to check: " + tagText;
+      const key = state.diagnosis.tag;
+      const tagText = key ? (T().tags[key] || key.replace(/_/g, " ")) : T().tags.one_step;
+      tag.textContent = T().whatToCheck + tagText;
       const text = document.createElement("p");
       text.textContent = state.diagnosis.text;
       banner.append(tag, text);
@@ -328,34 +670,32 @@
   function renderHints() {
     const box = el("hints");
     box.textContent = "";
-    if (state.revealed && state.solution) {
-      // The solution lives in the banner; keep the ladder visible for the jury.
-    }
     if (!state.hints.length) {
       const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = "No hints yet. Try the problem first: help is here when you want it.";
+      empty.textContent = T().hintsEmpty;
       box.append(empty);
       return;
     }
     for (const hint of state.hints) {
-      const info = RUNGS[hint.rung] || {title: "Rung " + hint.rung, cls: ""};
+      const info = RUNGS[hint.rung] || {cls: ""};
       const card = document.createElement("div");
       card.className = "hint " + (hint.status === "rejected" ? "rejected" : info.cls);
       const head = document.createElement("div");
       head.className = "rung";
       const name = document.createElement("span");
-      name.textContent = info.title;
+      name.textContent = T().rungs[hint.rung] || ("Step " + hint.rung);
       const time = document.createElement("span");
       time.className = "time";
       time.textContent = hint.seconds.toFixed(2) + " s";
       head.append(name, time);
       const text = document.createElement("p");
       if (hint.status === "rejected") {
-        text.textContent = "The model's sentence repeated the answer, so the checker replaced it. "
-          + hint.text;
+        text.textContent = T().rejected + hint.text;
       } else if (hint.status === "unavailable") {
-        text.textContent = "The model is not answering, so here is the method instead. " + hint.text;
+        text.textContent = T().unavailable + hint.text;
+      } else if (hint.status === "local") {
+        text.textContent = T().local + hint.text;
       } else {
         text.textContent = hint.text;
       }
@@ -371,74 +711,153 @@
     if (!profile || !profile.tries) {
       const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = "Nothing yet. Your profile stays on the board.";
+      empty.textContent = T().profileEmpty;
       box.append(empty);
       return;
     }
     const line = document.createElement("p");
     line.className = "empty";
-    line.textContent = profile.right + " right out of " + profile.tries + " attempts, kept in SQLite on the board.";
+    line.textContent = T().profileLine(profile.right, profile.tries);
     box.append(line);
+    const chips = document.createElement("div");
+    chips.className = "chips";
     for (const item of profile.topics.slice(0, 5)) {
       const chip = document.createElement("span");
       chip.className = "chip";
-      chip.style.marginRight = "6px";
-      chip.textContent = item.topic + " · " + item.right + "/" + item.tries;
-      box.append(chip);
+      chip.textContent = (TOPIC_NAMES[lang][item.topic] || item.topic) + " · " + item.right + "/" + item.tries;
+      chips.append(chip);
     }
+    box.append(chips);
+  }
+
+  function renderHintButton() {
+    const button = el("hint");
+    if (!button || !state) return;
+    const left = cooldownLeft();
+    const hasNext = !!(state.problem && state.next_rung && !isSolved());
+    const waiting = left > 0 && hasNext;
+    button.classList.toggle("cooling", waiting);
+    button.classList.toggle("ready", !waiting && hasNext && !busy);
+    button.disabled = busy || !hasNext || waiting;
+    if (waiting) button.textContent = T().hintWait(left);
+    else if (hasNext) button.textContent = T().askHint(state.next_rung);
+    else button.textContent = T().hintNone;
+  }
+
+  function renderStatic() {
+    const t = T();
+    document.documentElement.lang = lang;
+    document.title = t.title;
+    el("title").textContent = t.title;
+    el("h-problem").textContent = t.problem;
+    el("h-help").textContent = t.help;
+    el("h-profile").textContent = t.profileTitle;
+    el("h-how").textContent = t.how;
+    el("how").textContent = t.howText;
+    el("footer-llm").textContent = t.footerLlm;
+    el("footer-embed").textContent = t.footerEmbed;
+    el("footer-help").textContent = t.footerHelp;
+    el("figure").alt = t.figureAlt;
+    el("lang-en").classList.toggle("active", lang === "eng");
+    el("lang-ca").classList.toggle("active", lang === "cat");
+    applyTheme();
   }
 
   function render() {
     if (!state) return;
+    lang = state.ui_language || state.language || "eng";
+    const t = T();
     const problem = state.problem;
-    el("level").textContent = "level " + (state.level === null ? "–" : state.level);
-    el("topic").textContent = state.topic ? "topic · " + state.topic : "topic –";
-    const tries = state.progress.tries;
-    el("progress").textContent = state.progress.right + " right / " + tries;
-    el("text").textContent = problem ? problem.text : "No problem on screen.";
+    if (problem && problem.key !== lastKey) {
+      lastKey = problem.key;
+      cooldownUntil = 0;         // a new problem starts with its first hint ready
+      answerCooldownUntil = 0;   // and with every option available
+    }
+    renderStatic();
+    el("level").textContent = t.level(state.level);
+    el("topic").textContent = t.topic(state.topic);
+    el("progress").textContent = t.progress(state.progress.right, state.progress.tries);
+    const textEl = el("text");
+    textEl.textContent = problem ? problem.text : t.noProblem;
+    const notice = el("notice");
     const figure = el("figure");
-    if (problem && problem.image) {
-      loadImage(problem.key).then((source) => {
+    const hasImage = !!(problem && problem.image);
+    const imageKey = problem ? (problem.image_key || problem.key) : null;
+    const imageLanguage = problem ? (problem.image_language || problem.language) : null;
+    const contentLanguage = hasImage ? imageLanguage : (problem ? problem.language : null);
+    const languagesDiffer = !!(problem && state.ui_language && contentLanguage
+                                && contentLanguage !== state.ui_language);
+    const card = document.querySelector("section .card");
+    const showNotice = (visible) => {
+      if (!visible || !languagesDiffer) {
+        notice.hidden = true;
+        return;
+      }
+      const name = contentLanguage === "cat"
+        ? (lang === "cat" ? "català" : "Catalan")
+        : (lang === "cat" ? "anglès" : "English");
+      notice.textContent = t.foreignProblem(name);
+      notice.hidden = false;
+    };
+    // The M3Kang image contains the statement and the options, so the image
+    // replaces the text. If it fails to load, the text comes back.
+    textEl.hidden = hasImage;
+    textEl.parentElement.classList.toggle("image-only", hasImage);
+    if (card) card.classList.toggle("image-mode", hasImage);
+    if (hasImage) {
+      if (figure.dataset.key !== imageKey) {
+        figure.hidden = true;
+        figure.removeAttribute("src");
+        figure.dataset.key = imageKey;
+      }
+      loadImage(imageKey).then((source) => {
         if (!source) {
           figure.hidden = true;
+          textEl.hidden = false;
+          textEl.parentElement.classList.remove("image-only");
+          if (card) card.classList.remove("image-mode");
+          showNotice(true);
           return;
         }
         figure.src = source;
         figure.hidden = false;
+        textEl.hidden = true;
+        textEl.parentElement.classList.add("image-only");
+        if (card) card.classList.add("image-mode");
+        showNotice(false);
       });
     } else {
       figure.hidden = true;
       figure.removeAttribute("src");
+      showNotice(true);
     }
     renderOptions();
     renderBanner();
     renderHints();
     renderProfile();
 
-    const hintButton = el("hint");
-    hintButton.disabled = busy || !problem || state.answered || state.revealed || !state.next_rung;
-    hintButton.textContent = state.next_rung ? "Ask for hint " + state.next_rung + " of 3" : "No more hints";
-
     const nextButton = el("next");
-    nextButton.disabled = busy || !problem || !(state.answered || state.revealed);
-    nextButton.textContent = "Next problem";
+    nextButton.disabled = busy || !problem || !isSolved();
+    nextButton.textContent = t.next;
 
     const revealButton = el("reveal");
-    revealButton.disabled = busy || !problem || state.revealed;
-    revealButton.textContent = revealArmed ? "Really show the solution?" : "Show the solution";
+    revealButton.disabled = busy || !problem || state.revealed || state.correct === true;
+    revealButton.textContent = revealArmed ? t.revealArm : t.reveal;
 
+    renderHintButton();
+    if (!busy) el("busy").lastChild.textContent = " " + t.thinking;
     el("dot-llm").className = "dot " + (state.servers && state.servers.llm ? "up" : "down");
     el("dot-embed").className = "dot " + (state.servers && state.servers.embed ? "up" : "down");
   }
 
   el("hint").onclick = () => {
-    if (!state || !state.problem) return;
-    act(`/api/hint/${encodeURIComponent(state.problem.key)}`, "looking for a hint…");
+    if (!state || !state.problem || !state.next_rung) return;
+    act(`/api/hint/${encodeURIComponent(state.problem.key)}/${state.next_rung}`, T().busyHint);
   };
   el("next").onclick = () => {
     if (!state || !state.problem) return;
     revealArmed = false;
-    act(`/api/next/${encodeURIComponent(state.problem.key)}`, "finding the next problem…");
+    act(`/api/next/${encodeURIComponent(state.problem.key)}`, T().busyNext);
   };
   el("reveal").onclick = () => {
     if (!state || !state.problem || busy) return;
@@ -450,20 +869,32 @@
     }
     clearTimeout(revealTimer);
     revealArmed = false;
-    act(`/api/reveal/${encodeURIComponent(state.problem.key)}`, "reading the solution…");
+    act(`/api/reveal/${encodeURIComponent(state.problem.key)}`, T().busyReveal);
   };
-  el("lang-en").onclick = () => act("/api/first/0/eng", "loading English problems…");
-  el("lang-ca").onclick = () => act("/api/first/0/cat", "loading Catalan problems…");
+  el("lang-en").onclick = () => act("/api/first/0/eng", I18N.eng.busyLang);
+  el("lang-ca").onclick = () => act("/api/first/0/cat", I18N.cat.busyLang);
+  el("theme").onclick = () => {
+    darkMode = !darkMode;
+    localStorage.setItem(THEME_KEY, darkMode ? "dark" : "light");
+    applyTheme();
+  };
 
   document.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const key = event.key.toUpperCase();
     if ((key === "H") && !el("hint").disabled) el("hint").click();
     else if ((key === "N") && !el("next").disabled) el("next").click();
-    else if ("ABCDE".includes(key) && state && state.problem && !state.answered && !state.revealed) {
-      act(`/api/answer/${encodeURIComponent(state.problem.key)}/${key}`, "checking…");
+    else if ("ABCDE".includes(key) && state && state.problem && !isSolved() && !answerWaiting()) {
+      const tried = (state.attempts || []).some((attempt) => attempt.choice === key);
+      if (!tried) act(`/api/answer/${encodeURIComponent(state.problem.key)}/${key}`, T().busyChecking);
     }
   });
+
+  // One timer for both cool-downs, so the countdown and the translucency move
+  // even while no action is in flight. It only touches the buttons and notes.
+  setInterval(() => { renderHintButton(); updateOptions(); }, 250);
+
+  applyTheme();
 
   (async function start() {
     state = await fetchState();

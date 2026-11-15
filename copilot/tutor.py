@@ -32,6 +32,7 @@ from .client import post
 from .config import CONFIG
 from .embed import embed
 from .llm import format_problem
+from .rag import keyword_score
 
 LETTERS = "ABCDE"
 MAX_LEVEL = 7          # M3Kang levels run 0 (easiest) to 7 (hardest)
@@ -169,36 +170,56 @@ def leak_check(hint, problem, label=None):
 # --------------------------------------------------------------------------
 
 DIAGNOSES = {
-    "digit_swap": "Your value has the right digits in a different order. Re-read the number you copied.",
-    "off_by_one": "You are one away. Check whether the last step should include the item at the end.",
-    "power_of_ten": "You are a factor of ten out. Check the units, or where the decimal point goes.",
-    "double": "Your value is twice the size the question asks for. Check which quantity you used.",
-    "half": "Your value is half the size the question asks for. Check whether you used all the items.",
-    "sign": "The size looks right but the direction is not. Check whether the quantity goes up or down.",
-    "from_text": "This number is in the problem, but it is one of the quantities to use, not the quantity the question asks for.",
-    "one_step": "This option is a combination of two numbers from the problem. Check whether the question asks for one more step.",
-    "unit": "The number looks plausible but the unit is different. Convert both to the same unit first.",
+    "eng": {
+        "digit_swap": "Your value has the right digits in a different order. Re-read the number you copied.",
+        "off_by_one": "You are one away. Check whether the last step should include the item at the end.",
+        "power_of_ten": "You are a factor of ten out. Check the units, or where the decimal point goes.",
+        "double": "Your value is twice the size the question asks for. Check which quantity you used.",
+        "half": "Your value is half the size the question asks for. Check whether you used all the items.",
+        "sign": "The size looks right but the direction is not. Check whether the quantity goes up or down.",
+        "from_text": "This number is in the problem, but it is one of the quantities to use, not the quantity the question asks for.",
+        "one_step": "This option is a combination of two numbers from the problem. Check whether the question asks for one more step.",
+        "unit": "The number looks plausible but the unit is different. Convert both to the same unit first.",
+    },
+    "cat": {
+        "digit_swap": "El teu valor té les xifres correctes en un altre ordre. Torna a llegir el nombre que has copiat.",
+        "off_by_one": "Et falta o et sobra una unitat. Comprova si l'últim pas ha d'incloure l'element del final.",
+        "power_of_ten": "El teu valor es desvia per un factor de deu. Comprova les unitats o on va la coma decimal.",
+        "double": "El teu valor és el doble del que demana la pregunta. Comprova quina quantitat has fet servir.",
+        "half": "El teu valor és la meitat del que demana la pregunta. Comprova si has fet servir tots els elements.",
+        "sign": "La mida sembla bé però la direcció no. Comprova si la quantitat puja o baixa.",
+        "from_text": "Aquest nombre surt al problema, però és una de les dades que has de fer servir, no la quantitat que demana la pregunta.",
+        "one_step": "Aquesta opció combina dos nombres del problema. Comprova si la pregunta demana un pas més.",
+        "unit": "El nombre sembla possible però la unitat és diferent. Passa els dos a la mateixa unitat abans de calcular.",
+    },
 }
 
-DIAGNOSIS_NONE = ("Look once more at what the last sentence asks for; the options are "
-                  "designed to catch the step before the answer.")
+DIAGNOSIS_NONE = {
+    "eng": ("Look once more at what the last sentence asks for; the options are "
+            "designed to catch the step before the answer."),
+    "cat": ("Torna a mirar què demana l'última frase; les opcions estan fetes per "
+            "aturar-se al pas anterior a la resposta."),
+}
+
 
 
 def _digits_key(value):
     return "".join(sorted(re.findall(r"\d", value)))
 
 
-def diagnose(problem, choice):
+def diagnose(problem, choice, language="eng"):
     """A guess about *the answer*, not about the student, from the two options.
 
     Returns {"tag", "text", "wrong_value", "correct_value"} or tag None. The
     tags are hypotheses to show to a teacher; the tutor never stores them as a
-    label of the student.
+    label of the student. ``language`` only picks the language of ``text``.
     """
+    words = DIAGNOSES.get(language, DIAGNOSES["eng"])
+    nothing = DIAGNOSIS_NONE.get(language, DIAGNOSIS_NONE["eng"])
     options = problem.get("options") or {}
     label = problem.get("label")
     if not options or label not in options or choice not in options or choice == label:
-        return {"tag": None, "text": DIAGNOSIS_NONE, "wrong_value": None, "correct_value": None}
+        return {"tag": None, "text": nothing, "wrong_value": None, "correct_value": None}
 
     right, wrong = options[label], options[choice]
     right_nums, _ = option_values(right)
@@ -231,7 +252,7 @@ def diagnose(problem, choice):
 
     return {
         "tag": found,
-        "text": DIAGNOSES.get(found, DIAGNOSIS_NONE) if found else DIAGNOSIS_NONE,
+        "text": words.get(found, nothing) if found else nothing,
         "wrong_value": wrong,
         "correct_value": right,
     }
@@ -255,7 +276,7 @@ def _is_combination(value, pool, limit=8):
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS attempts (
     ts REAL, key TEXT, id TEXT, language TEXT, level INTEGER, topic TEXT,
-    choice TEXT, correct INTEGER, rung INTEGER, seconds REAL
+    choice TEXT, correct INTEGER, rung INTEGER, seconds REAL, points REAL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS topics (
     topic TEXT, language TEXT, tries INTEGER, right INTEGER, level INTEGER,
@@ -271,6 +292,11 @@ class Profile:
         self.path = path
         with self._open() as db:
             db.executescript(SCHEMA)
+            # A profile made before points existed: add the column in place.
+            try:
+                db.execute("ALTER TABLE attempts ADD COLUMN points REAL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass
 
     @contextlib.contextmanager
     def _open(self):
@@ -282,13 +308,14 @@ class Profile:
         finally:
             db.close()
 
-    def record(self, problem, choice, correct, rung=0, seconds=0.0, topic=None):
+    def record(self, problem, choice, correct, rung=0, seconds=0.0, topic=None, points=0.0):
         topic = topic or topics.classify(problem.get("text", ""))["topic"]
         level = int(problem.get("level", 0))
         with self._open() as db:
-            db.execute("INSERT INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            db.execute("INSERT INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                        (time.time(), key_of(problem), problem.get("id"), problem.get("language"),
-                        level, topic, choice, int(bool(correct)), int(rung), float(seconds)))
+                        level, topic, choice, int(bool(correct)), int(rung), float(seconds),
+                        float(points)))
             db.execute(
                 "INSERT INTO topics (topic, language, tries, right, level) VALUES (?, ?, 1, ?, ?) "
                 "ON CONFLICT(topic, language) DO UPDATE SET tries = tries + 1, "
@@ -298,12 +325,14 @@ class Profile:
 
     def summary(self):
         with self._open() as db:
-            tries = db.execute("SELECT COUNT(*), COALESCE(SUM(correct), 0) FROM attempts").fetchone()
+            tries = db.execute("SELECT COUNT(*), COALESCE(SUM(correct), 0), "
+                               "COALESCE(SUM(points), 0) FROM attempts").fetchone()
             rows = db.execute("SELECT topic, language, tries, right FROM topics "
                               "ORDER BY tries DESC, topic LIMIT 12").fetchall()
         return {
             "tries": tries[0],
             "right": tries[1],
+            "points": round(tries[2], 1),   # kept for the profile, never shown as a score
             "topics": [{"topic": t, "language": lang, "tries": n, "right": r}
                        for t, lang, n, r in rows],
         }
@@ -329,14 +358,49 @@ HINT_SYSTEM = (
     "words, that suggests the first step or the idea behind it. Never state the answer, "
     "never name an option letter, and never repeat any of the option values.")
 
+HINT_SYSTEM_CA = (
+    "Ajudes un estudiant a començar un problema de matemàtiques. Dóna una pista curta, "
+    "de com a màxim 20 paraules, que suggereixi el primer pas o la idea. No diguis mai "
+    "la resposta, no anomenis cap lletra d'opció i no repeteixis cap dels valors de les "
+    "opcions. Respon en català.")
 
-def model_hint(problem, timeout=20.0, url=None):
-    """Ask the 0.8B model for one short hint. Returns (hint, seconds)."""
+HINT_SYSTEMS = {"eng": HINT_SYSTEM, "cat": HINT_SYSTEM_CA}
+
+# A small model drifts into English even when asked not to. A Catalan hint that
+# comes back in English is still not "everything on the page in Catalan", so the
+# caller swaps it for the deterministic Catalan method hint.
+_ENGLISH_MARKERS = {
+    "the", "and", "your", "you", "this", "that", "with", "have", "first", "step",
+    "how", "what", "number", "times", "then", "from", "which", "will", "would",
+    "can", "should", "each", "total", "add", "subtract", "multiply", "divide",
+}
+_CATALAN_MARKERS = {
+    "el", "la", "els", "les", "de", "del", "dels", "que", "amb", "per", "una",
+    "un", "com", "quan", "primer", "pas", "nombre", "quant", "quin", "aquest",
+    "aquesta", "després", "suma", "resta", "multiplica", "divideix", "total",
+}
+
+
+def looks_english(text):
+    """True when a Catalan hint came back mostly in English."""
+    words = re.findall(r"[^\W\d_]+", normalize(text))
+    english = sum(word in _ENGLISH_MARKERS for word in words)
+    catalan = sum(word in _CATALAN_MARKERS for word in words)
+    return english >= 2 and english > catalan
+
+
+def model_hint(problem, timeout=20.0, url=None, language="eng"):
+    """Ask the 0.8B model for one short hint. Returns (hint, seconds).
+
+    For Catalan the caller passes the English version of the same problem: the
+    small model follows English maths far better, and the system prompt asks it
+    to answer in Catalan.
+    """
     from .llm import URL as LLM_URL
     start = time.perf_counter()
     response = post(url or LLM_URL, {
         "messages": [
-            {"role": "system", "content": HINT_SYSTEM},
+            {"role": "system", "content": HINT_SYSTEMS.get(language, HINT_SYSTEM)},
             {"role": "user", "content": format_problem(problem) + "\nHint:"},
         ],
         "max_tokens": 64,
@@ -369,7 +433,16 @@ class Tutor:
         self.by_key = {key_of(p): p for _key, p, _vec in self.rows}
         self.twin = {p["id"]: p for _key, p, _vec in self.rows
                      if p.get("language") == "eng"}
-        self.vectors = {p["id"] + "|" + p["language"]: vec for _key, p, vec in self.rows}
+        # Every row is compared through its English twin's vector: bge-small is
+        # an English model, and the Catalan text of the same problem would
+        # otherwise point at other Catalan problems instead of at the topic.
+        twin_vectors = {p["id"]: vec for _key, p, vec in self.rows
+                        if p.get("language") == "eng"}
+        self.vectors = {}
+        for _key, p, vec in self.rows:
+            self.vectors[p["id"] + "|" + p["language"]] = twin_vectors.get(p["id"], vec)
+        self.keyword_weight = float(CONFIG.get("RAG_KEYWORD_WEIGHT") or 0.0)
+        self.min_score = float(CONFIG.get("RAG_MIN_SCORE") or 0.0)
         self.profile = Profile(profile_path) if profile_path else None
         self.images = images
         self.llm_timeout = llm_timeout
@@ -394,13 +467,21 @@ class Tutor:
 
     # -- what the page may see ------------------------------------------------
 
-    def public(self, problem):
+    def public(self, problem, language=None):
         shown = {k: v for k, v in problem.items() if k != "label"}
         shown["key"] = key_of(problem)
-        has_image = bool(self.images and _has_image(self.images, key_of(problem)))
-        # The image is the source of options/figures; when the problem is
-        # text-only and the OCR options are complete, it is redundant.
-        shown["image"] = has_image and (not problem.get("text_only") or not problem.get("options"))
+        # The image is the statement, so it must be in the page's language even
+        # when the problem text comes from another one (Catalan twin by id).
+        image_key = key_of(problem)
+        image_language = problem.get("language")
+        if language and language != problem.get("language"):
+            twin_key = f"{problem['id']}_{language}"
+            if self.images and _has_image(self.images, twin_key):
+                image_key = twin_key
+                image_language = language
+        shown["image_key"] = image_key
+        shown["image_language"] = image_language
+        shown["image"] = bool(self.images and _has_image(self.images, image_key))
         shown["topic"] = topics.classify(problem.get("text", ""))["topic"]
         return shown
 
@@ -409,16 +490,19 @@ class Tutor:
 
     # -- retrieval ------------------------------------------------------------
 
-    def _vector(self, problem):
-        query = self.twin.get(problem.get("id")) or problem
-        return embed([format_problem(query)], query=True)[0]
-
     def rank(self, problem):
-        """Every solved problem, most similar first, from the same id excluded."""
+        """Every solved problem, most similar first, from the same id excluded.
+
+        Cosine similarity plus a share of the word overlap. The query and every
+        stored problem are read through their English twin when there is one,
+        which is what makes Catalan practice retrieve the right topic.
+        """
         cache_key = key_of(problem)
         if cache_key in self._rank_cache:
             return self._rank_cache[cache_key]
-        query = self._vector(problem)
+        query = self.twin.get(problem.get("id")) or problem
+        query_text = format_problem(query)
+        vector = embed([query_text], query=True)[0]
         scored = []
         for stored in self.by_key.values():
             if stored["id"] == problem["id"]:
@@ -426,7 +510,12 @@ class Tutor:
             vec = self.vectors.get(stored["id"] + "|" + stored["language"])
             if vec is None:
                 continue
-            scored.append((sum(a * b for a, b in zip(query, vec)), stored))
+            english = self.twin.get(stored["id"]) or stored
+            score = (sum(a * b for a, b in zip(vector, vec))
+                     + self.keyword_weight * keyword_score(query_text, format_problem(english)))
+            if self.min_score and score < self.min_score:
+                continue
+            scored.append((score, stored))
         scored.sort(key=lambda pair: pair[0], reverse=True)
         if len(self._rank_cache) > 200:
             self._rank_cache.clear()
@@ -438,10 +527,16 @@ class Tutor:
 
     # -- the hint ladder ------------------------------------------------------
 
-    def _worked_example(self, neighbour, score, easier=True):
-        title = ("A similar, easier problem, already solved" if easier
-                 else "Another solved problem at this level (there was nothing easier)")
-        lines = [f"{title} (level {neighbour.get('level', '?')}):",
+    def _worked_example(self, neighbour, score, easier=True, language="eng"):
+        if language == "cat":
+            title = ("Un problema semblant, més fàcil i ja resolt" if easier
+                     else "Un altre problema resolt d'aquest nivell (no n'hi havia cap de més fàcil)")
+            level_text, solved_text, solved_letter = "nivell", "Resolt com a", "Resolt com a"
+        else:
+            title = ("A similar, easier problem, already solved" if easier
+                     else "Another solved problem at this level (there was nothing easier)")
+            level_text, solved_text, solved_letter = "level", "Solved as", "Solved as"
+        lines = [f"{title} ({level_text} {neighbour.get('level', '?')}):",
                  neighbour.get("text", "").strip()]
         options = neighbour.get("options") or {}
         for letter in LETTERS:
@@ -449,9 +544,9 @@ class Tutor:
                 lines.append(f"{letter}) {options[letter]}")
         label = neighbour.get("label")
         if label in options:
-            lines.append(f"Solved as {label}) {options[label]}.")
+            lines.append(f"{solved_text} {label}) {options[label]}.")
         elif label:
-            lines.append(f"Solved as {label}.")
+            lines.append(f"{solved_letter} {label}.")
         return "\n".join(lines), {"neighbour_id": neighbour.get("id"),
                                   "neighbour_key": key_of(neighbour),
                                   "neighbour_level": neighbour.get("level"),
@@ -484,7 +579,7 @@ class Tutor:
             return same_topic[0], easier_flag
         return None, easier_flag
 
-    def hint(self, problem, rung):
+    def hint(self, problem, rung, language="eng"):
         """One rung. Returns {"rung", "kind", "text", "status", "seconds", "detail"}."""
         start = time.perf_counter()
         rung = max(1, min(4, int(rung)))
@@ -504,21 +599,22 @@ class Tutor:
         if rung == 1:
             found, was_easier = self.easier_neighbour(problem)
             if not found:
-                return self._method_hint(problem, 1, start, status="fallback",
+                return self._method_hint(problem, 1, start, language=language,
+                                         status="fallback",
                                          detail={"reason": "no neighbour to show"})
             score, neighbour = found
-            text, detail = self._worked_example(neighbour, score, was_easier)
+            text, detail = self._worked_example(neighbour, score, was_easier, language)
             detail["easier"] = was_easier
             return {"rung": 1, "kind": "easier_problem", "text": text, "status": "ok",
                     "seconds": round(time.perf_counter() - start, 2), "detail": detail}
         if rung == 2:
-            return self._method_hint(problem, 2, start)
+            return self._method_hint(problem, 2, start, language=language)
         if rung == 3:
-            return self._model_hint(problem, start)
-        return self.reveal(problem, start)
+            return self._model_hint(problem, start, language)
+        return self.reveal(problem, start, language)
 
-    def _method_hint(self, problem, rung, start, status="ok", detail=None):
-        found = topics.classify(problem.get("text", ""))
+    def _method_hint(self, problem, rung, start, language="eng", status="ok", detail=None):
+        found = topics.classify(problem.get("text", ""), language)
         try:
             neighbours = [p for _s, p in self.rank(problem)[:5]]
             shared = topics.shared_topics(neighbours)
@@ -526,27 +622,44 @@ class Tutor:
             # The embeddings are down: the keywords still work, so the method
             # is still useful. Never lose rung 2 to a dead server.
             shared = None
-        lines = [f"This looks like a {found['topic']} problem.", found["method"]]
-        if shared and shared != found["topic"]:
-            lines.append(f"Its nearest neighbours are mostly {shared} problems.")
+        if language == "cat":
+            lines = [f"Sembla un problema de {topics.display(found['topic'], 'cat')}.",
+                     found["method"]]
+            if shared and shared != found["topic"]:
+                lines.append(f"Els problemes més propers són sobretot de "
+                             f"{topics.display(shared, 'cat')}.")
+        else:
+            lines = [f"This looks like a {topics.display(found['topic'], 'eng')} problem.",
+                     found["method"]]
+            if shared and shared != found["topic"]:
+                lines.append(f"Its nearest neighbours are mostly "
+                             f"{topics.display(shared, 'eng')} problems.")
         detail = dict(detail or {})
         detail.update({"topic": found["topic"], "matched": found["matched"],
                        "shared_topic": shared})
         return {"rung": rung, "kind": "method", "text": "\n".join(lines), "status": status,
                 "seconds": round(time.perf_counter() - start, 2), "detail": detail}
 
-    def _model_hint(self, problem, start):
+    def _model_hint(self, problem, start, language="eng"):
         effective = max(1.0, self.llm_timeout)
+        # Understand the problem in English, answer in the page's language.
+        asked = self.twin.get(problem.get("id"), problem) if language == "cat" else problem
         try:
-            raw, model_seconds = model_hint(problem, timeout=effective)
+            raw, model_seconds = model_hint(asked, timeout=effective, language=language)
         except (OSError, urllib.error.URLError, KeyError, ValueError) as error:
-            hint = self._method_hint(problem, 3, start, status="unavailable",
+            hint = self._method_hint(problem, 3, start, language=language, status="unavailable",
                                      detail={"error": str(error)})
             hint["kind"] = "method"
             return hint
+        if language == "cat" and looks_english(raw):
+            hint = self._method_hint(problem, 3, start, language=language, status="local",
+                                     detail={"reason": "answer came back in English",
+                                             "raw": raw,
+                                             "model_seconds": round(model_seconds, 2)})
+            return hint
         leaks, reason = leak_check(raw, problem)
         if leaks:
-            hint = self._method_hint(problem, 3, start, status="rejected",
+            hint = self._method_hint(problem, 3, start, language=language, status="rejected",
                                      detail={"reason": reason, "raw": raw,
                                              "model_seconds": round(model_seconds, 2)})
             hint["detail"]["leak"] = reason
@@ -555,19 +668,23 @@ class Tutor:
                 "seconds": round(time.perf_counter() - start, 2),
                 "detail": {"raw": raw, "model_seconds": round(model_seconds, 2)}}
 
-    def reveal(self, problem, start=None):
+    def reveal(self, problem, start=None, language="eng"):
         start = start or time.perf_counter()
         options = problem.get("options") or {}
         label = problem.get("label")
-        text = (f"The correct option is {label}) {options[label]}" if label in options
-                else f"The correct option is {label}.")
+        if language == "cat":
+            text = (f"L'opció correcta és {label}) {options[label]}" if label in options
+                    else f"L'opció correcta és {label}.")
+        else:
+            text = (f"The correct option is {label}) {options[label]}" if label in options
+                    else f"The correct option is {label}.")
         return {"rung": 4, "kind": "solution", "text": text, "status": "ok",
                 "seconds": round(time.perf_counter() - start, 2),
                 "detail": {"label": label}}
 
     # -- checking and diagnosis ----------------------------------------------
 
-    def check(self, problem, choice):
+    def check(self, problem, choice, language="eng"):
         label = problem.get("label")
         correct = choice == label
         options = problem.get("options") or {}
@@ -575,7 +692,7 @@ class Tutor:
                   "label_value": options.get(label),
                   "chosen_value": options.get(choice)}
         if not correct:
-            result["diagnosis"] = diagnose(problem, choice)
+            result["diagnosis"] = diagnose(problem, choice, language)
         return result
 
     # -- adaptive practice ---------------------------------------------------
@@ -583,6 +700,11 @@ class Tutor:
     def first_problem(self, level=1, language="eng", seed=None):
         pool = [p for _k, p, _v in self.rows
                 if p.get("level") == level and p.get("language") == language]
+        if not pool:
+            # Keep the page's language before the page's level: a Catalan
+            # student would rather see another Catalan problem than an English
+            # one at exactly the level asked for.
+            pool = [p for _k, p, _v in self.rows if p.get("language") == language]
         if not pool:
             pool = [p for _k, p, _v in self.rows if p.get("level") == level]
         if not pool:
@@ -689,6 +811,7 @@ class Session:
         self.tutor = tutor
         self.level = int(level)
         self.language = language
+        self.ui_language = language
         self.seen = []
         self.counts = {"tries": 0, "right": 0}
         self.profile_summary = tutor.profile.summary() if tutor.profile else None
@@ -700,6 +823,7 @@ class Session:
         self.answered = False
         self.chosen = None
         self.result = None
+        self.attempts = []
         self.hints = []
         self.revealed = False
         self.revealed_label = None
@@ -710,13 +834,13 @@ class Session:
     def start(self, level=None, language=None):
         self.level = int(self.level if level is None else level)
         self.language = language or self.language
+        # The page's language, not the problem's: if the index has no Catalan
+        # problems, the interface still stays Catalan and says so by the text.
+        self.ui_language = language or self.ui_language
         self._clear()
         self.seen = []
         self.counts = {"tries": 0, "right": 0}
-        self.problem = self.tutor.first_problem(level=self.level, language=self.language)
-        if self.problem:
-            # The index may not have this language yet; practise in what it has.
-            self.language = self.problem.get("language", self.language)
+        self.problem = self.tutor.first_problem(level=self.level, language=self.ui_language)
         return self.state()
 
     def current_key(self):
@@ -724,7 +848,7 @@ class Session:
 
     def state(self):
         problem = self.problem
-        public = self.tutor.public(problem) if problem else None
+        public = self.tutor.public(problem, self.ui_language) if problem else None
         diagnosis = None
         if self.result and not self.result["correct"] and not self.revealed:
             diagnosis = {"tag": self.result["diagnosis"]["tag"],
@@ -733,21 +857,27 @@ class Session:
             "problem": public,
             "level": int(problem.get("level", 0)) if problem else None,
             "language": problem.get("language") if problem else None,
+            "ui_language": self.ui_language,
             "topic": public.get("topic") if public else None,
             "answered": self.answered,
+            "solved": bool(self.result and self.result["correct"]),
             "chosen": self.chosen,
+            "attempts": list(self.attempts),
             "correct": bool(self.result["correct"]) if self.result else None,
             "diagnosis": diagnosis,
             "hints": [{"rung": hint["rung"], "kind": hint["kind"], "text": hint["text"],
                        "status": hint["status"], "seconds": hint["seconds"]} for hint in self.hints],
             "next_rung": (len(self.hints) + 1 if len(self.hints) < 3 else None)
-            if not self.answered and not self.revealed else None,
+            if not (self.result and self.result["correct"]) and not self.revealed else None,
             "revealed": self.revealed,
             "revealed_label": self.revealed_label,
             "solution": self.solution,
-            "next_ready": bool(self.answered or self.revealed) and self.pending is not None,
+            "next_ready": (bool(self.result and self.result["correct"]) or self.revealed)
+            and self.pending is not None,
             "progress": dict(self.counts),
             "profile": self.profile_summary,
+            "hint_cooldown": float(CONFIG.get("HINT_COOLDOWN_SECONDS") or 0),
+            "answer_cooldown": float(CONFIG.get("ANSWER_COOLDOWN_SECONDS") or 0),
             "last": self.last,
         }
 
@@ -755,10 +885,10 @@ class Session:
         """The adaptive next problem, or a same-level one if embeddings are down."""
         try:
             return self.tutor.next_problem(problem, correct, seen_ids=self.seen,
-                                           prefer_language=self.language)
+                                           prefer_language=self.ui_language)
         except (OSError, urllib.error.URLError, KeyError, ValueError):
             fallback = self.tutor.first_problem(level=int(problem.get("level", 0)),
-                                                language=self.language)
+                                                language=self.ui_language)
             if fallback is None or fallback.get("id") in self.seen:
                 return None
             return {"problem": self.tutor.public(fallback),
@@ -771,24 +901,32 @@ class Session:
         letter = (letter or "").strip().upper()
         if self.problem is None:
             return {"error": "no problem is on screen"}
-        if self.answered or self.revealed:
-            return {"error": "this problem is already checked; press next"}
+        if self.revealed:
+            return {"error": "the solution is showing; press next"}
+        if self.result and self.result["correct"]:
+            return {"error": "this problem is already solved; press next"}
         if letter not in LETTERS:
             return {"error": "choose A to E"}
+        if any(attempt["choice"] == letter for attempt in self.attempts):
+            return {"error": "you already tried that option; choose another one"}
         started = time.perf_counter()
-        result = self.tutor.check(self.problem, letter)
+        result = self.tutor.check(self.problem, letter, self.ui_language)
         self.answered = True
         self.chosen = letter
         self.result = result
+        self.attempts.append({"choice": letter, "correct": result["correct"]})
         self.counts["tries"] += 1
         self.counts["right"] += int(result["correct"])
+        # A private score, never shown: a right answer is worth 10, a hint costs
+        # 1, and a failed attempt already cost 3 when it happened.
+        points = max(0.0, 10.0 - 1.0 * len(self.hints)) if result["correct"] else -3.0
         seconds = time.perf_counter() - started
         if self.tutor.profile:
             self.tutor.profile.record(self.problem, letter, result["correct"],
-                                      rung=len(self.hints), seconds=seconds)
+                                      rung=len(self.hints), seconds=seconds, points=points)
             self.profile_summary = self.tutor.profile.summary()
-        # Decide the next problem now, while the toast is on screen, so "next"
-        # costs nothing. The student never sees it until they ask.
+        # Recompute on every attempt: the last one decides the next problem, so
+        # a wrong guess followed by the right answer still moves a level up.
         self.pending = self._pick_next(self.problem, result["correct"])
         self.last = {"kind": "answer", "choice": letter, "correct": result["correct"]}
         return self.state()
@@ -796,16 +934,18 @@ class Session:
     def hint(self, rung=None):
         if self.problem is None:
             return {"error": "no problem is on screen"}
-        if self.answered or self.revealed:
-            return {"error": "this problem is already checked; press next"}
+        if self.revealed:
+            return {"error": "the solution is showing; press next"}
+        if self.result and self.result["correct"]:
+            return {"error": "this problem is already solved; press next"}
         asked = len(self.hints) + 1
         rung = asked if rung is None else int(rung)
         if rung != asked:
-            return {"error": f"ask for rung {asked} first"}
+            return {"error": f"ask for step {asked} first"}
         if asked == 4:
-            return {"error": "the last rung is the solution: press reveal"}
+            return {"error": "the last step is the solution: press reveal"}
         try:
-            hint = self.tutor.hint(self.problem, rung)
+            hint = self.tutor.hint(self.problem, rung, self.ui_language)
         except (OSError, urllib.error.URLError) as error:
             return {"error": f"the model is not answering: {error}"}
         self.hints.append(hint)
@@ -817,7 +957,7 @@ class Session:
             return {"error": "no problem is on screen"}
         if self.revealed:
             return {"error": "already revealed"}
-        solution = self.tutor.reveal(self.problem)
+        solution = self.tutor.reveal(self.problem, language=self.ui_language)
         self.solution = solution["text"]
         self.revealed = True
         self.revealed_label = self.problem.get("label")

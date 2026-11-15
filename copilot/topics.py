@@ -82,6 +82,64 @@ TOPICS = {
 GENERAL_METHOD = ("Read the last sentence twice, underline what is being asked, and write "
                   "down the quantities you are given before choosing an operation.")
 
+# The same one-sentence advice in Catalan. The taxonomy is keyword based in both
+# languages, so a Catalan problem classifies without calling a model, and rung 2
+# never falls back to English when the page is in Catalan.
+GENERAL_METHOD_CA = ("Llegeix dues vegades l'última frase, subratlla què et demanen i escriu "
+                     "les dades que et donen abans de triar una operació.")
+
+METHOD_CA = {
+    "counting": "Recompte: fes una taula petita amb les opcions i compta els casos abans "
+                "de decidir si sumes o multipliques.",
+    "probability": "Probabilitat: escriu tots els resultats igual de probables i compta "
+                   "els que vols.",
+    "geometry": "Geometria: dibuixa la figura i escriu al costat la fórmula que necessites "
+                "i les dades que ja tens.",
+    "fractions": "Fraccions: posa les dues quantitats amb el mateix denominador abans de "
+                 "comparar-les o sumar-les.",
+    "number_theory": "Teoria de nombres: prova primer els casos més petits i mira què es repeteix.",
+    "measurement": "Mesures: passa totes les quantitats a la mateixa unitat abans de calcular.",
+    "money": "Diners: calcula primer el total i després compara'l amb els diners que tens.",
+    "time": "Temps: compta primer les unitats senceres i després les que sobren.",
+    "statistics": "Estadística: suma tots els valors i divideix pel nombre de valors.",
+    "rate": "Proporcions: troba primer la quantitat per a una unitat i després multiplica "
+            "pel nombre que necessites.",
+    "algebra": "Àlgebra: posa nom a la incògnita, escriu la frase com una equació i desfés "
+               "les operacions d'una en una.",
+    "patterns": "Patrons: escriu les diferències entre termes seguits i mira aquestes diferències.",
+    "logic": "Lògica: prova primer els dos casos extrems; un sol contraexemple ja descarta "
+             "una afirmació.",
+    "arithmetic": "Aritmètica: subratlla la pregunta, fes una operació per línia i porta "
+                  "les unitats al costat dels nombres.",
+    "general": GENERAL_METHOD_CA,
+}
+
+# What the page writes in the topic chip and in the profile.
+NAMES = {
+    "eng": {
+        "counting": "counting", "probability": "probability", "geometry": "geometry",
+        "fractions": "fractions", "number_theory": "number theory",
+        "measurement": "measurement", "money": "money", "time": "time",
+        "statistics": "statistics", "rate": "rate", "algebra": "algebra",
+        "patterns": "patterns", "logic": "logic", "arithmetic": "arithmetic",
+        "general": "general",
+    },
+    "cat": {
+        "counting": "recompte", "probability": "probabilitat", "geometry": "geometria",
+        "fractions": "fraccions", "number_theory": "teoria de nombres",
+        "measurement": "mesures", "money": "diners", "time": "temps",
+        "statistics": "estadística", "rate": "proporcions", "algebra": "àlgebra",
+        "patterns": "patrons", "logic": "lògica", "arithmetic": "aritmètica",
+        "general": "general",
+    },
+}
+
+
+def display(topic, language="eng"):
+    """The topic's name in the page's language."""
+    return NAMES.get(language, NAMES["eng"]).get(topic, topic)
+
+
 
 def normalize(text):
     return (text or "").lower().replace("’", "'").replace("–", "-").replace("—", "-")
@@ -127,13 +185,16 @@ def _cached(lowered):
     return (topic, method, tuple(sorted(set(hits))))
 
 
-def classify(text):
+def classify(text, language="eng"):
     """Return {"topic", "method", "matched"} for one problem text.
 
     Ties go to the topic whose keywords appear earliest in the text, which is
-    usually the noun that names the situation.
+    usually the noun that names the situation. ``language`` only chooses the
+    language of ``method``; classification itself is keyword based in both.
     """
     topic, method, matched = _cached(normalize(text))
+    if language == "cat":
+        method = METHOD_CA.get(topic, GENERAL_METHOD_CA)
     return {"topic": topic, "method": method, "matched": list(matched)}
 
 

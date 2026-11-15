@@ -1184,10 +1184,32 @@ The ladder is the one from 13.2, with the checks it needs:
    No model.
 3. **One sentence from the 0.8B model.** Checked in code first: if the hint contains the
    correct option's value, a spelling of it ("eighty-one"), or the correct letter next to
-   "answer", it is thrown away and rung 2 is shown instead.
+   "answer", it is thrown away and rung 2 is shown instead. In Catalan the model reads the
+   English twin of the problem and is asked for Catalan; if it answers in English anyway,
+   the page shows the Catalan method hint instead.
 4. **The solution**, only when the student presses the button twice.
 
-There is no free-form chat. The page has buttons: a letter, the next rung, reveal, next,
+The page has a single language switch: English or Català changes every label, every hint,
+the diagnosis and the solution. It is called **MindDragon** in both languages and has a moon
+button that switches light/dark. The problem image already contains the statement and the
+options, so the page shows the image edge to edge at the top of the card and does not repeat
+the text. The image is the one for the selected language: English problems show the English
+image, Catalan problems the Catalan one, and when the OCR options are in another language
+only the A-E buttons are shown. A wrong answer is not final: the student can try another
+option until the right one. Wrong options stay visible but translucent, and
+`ANSWER_COOLDOWN_SECONDS` (5 s) locks the remaining options before the next attempt. Only the
+right answer, or a reveal, enables the next problem.
+
+The page keeps a private score that it never prints: a wrong attempt is -3, each hint is -1,
+and the right answer is +10. So asking for help costs less than failing, and the totals stay
+in `data/tutor.db` for the teacher or the write-up.
+
+`HINT_COOLDOWN_SECONDS` (20 s) between hints; the button is solid and pulsing when a hint is
+ready, translucent with a countdown while it waits. Retrieval reads Catalan problems through
+their English twin and blends the embedding score with word overlap (`RAG_KEYWORD_WEIGHT`,
+`RAG_MIN_SCORE`), because bge-small is an English model.
+
+There is no free-form chat. The page has buttons: a letter, the next step, reveal, next,
 restart. The answer is checked against M3Kang's own `label`, never against the model. A
 wrong option is diagnosed by comparing it with the correct one (half, double, a factor of
 ten, digits swapped, copied from the text, one step short) and the page shows *what to

@@ -65,7 +65,20 @@ class App:
         self.session = Session(self.tutor, level=args.level, language=args.language)
         self.images = args.images
         self.image_keys = {key for key in self.tutor.by_key}
+        self.index_ids = {p["id"] for p in self.tutor.by_key.values()}
         self._health = {"at": 0.0, "llm": False, "embed": False}
+
+    def image_path(self, key):
+        """Allow an image key whose problem id is indexed, in any language.
+
+        The page asks for the image in its own language, which may be the twin
+        of the language of the problem text.
+        """
+        key = key.rsplit(".", 1)[0]
+        if key.rsplit("_", 1)[0] not in self.index_ids:
+            return None
+        path = os.path.join(self.images, key + ".png")
+        return path if os.path.exists(path) else None
 
     def servers(self):
         """Cached for ten seconds: the page polls, and /health twice a poll is waste."""
@@ -116,9 +129,8 @@ def make_handler(app):
                 if path == "/api/state":
                     return self.send(200, app.state())
                 if parts[:2] == ["api", "image"] and len(parts) == 3:
-                    key = parts[2].rsplit(".", 1)[0]
-                    file = os.path.join(app.images, key + ".png")
-                    if key in app.image_keys and os.path.exists(file):
+                    file = app.image_path(parts[2])
+                    if file:
                         with open(file, "rb") as handle:
                             raw = handle.read()
                             return self.send(200, {"data": base64.b64encode(raw).decode(),

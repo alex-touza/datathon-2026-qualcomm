@@ -23,6 +23,8 @@ def main():
     p.add_argument("--input", required=True)
     p.add_argument("--output", required=True)
     p.add_argument("--rag", type=int, default=0, metavar="K", help="add K similar solved problems")
+    p.add_argument("--alpha", type=float, default=None,
+                   help="override CALIBRATION_ALPHA (0 = no letter-bias correction)")
     p.add_argument("--index", default="data/index.db")
     args = p.parse_args()
 
@@ -43,7 +45,7 @@ def main():
         writer = csv.writer(out)
         writer.writerow(["id", "language", "answer", "seconds", "status"])
         for n, problem in enumerate(problems, 1):
-            result = solve(problem, index=index, k=args.rag)
+            result = solve(problem, index=index, k=args.rag, alpha=args.alpha)
             writer.writerow([problem["id"], problem.get("language", ""), result["answer"],
                              result["seconds"], result["status"]])
             out.flush()

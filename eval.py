@@ -43,6 +43,8 @@ def main():
     p.add_argument("--limit", type=int, default=50, help="0 means every problem")
     p.add_argument("--languages", default="", help="e.g. eng,cat")
     p.add_argument("--rag", type=int, default=0, metavar="K")
+    p.add_argument("--alpha", type=float, default=None,
+                   help="override CALIBRATION_ALPHA for this run (0 = no correction)")
     p.add_argument("--index", default="data/index.db")
     p.add_argument("--name", default="", help="a label for this experiment in ablations.csv")
     args = p.parse_args()
@@ -73,7 +75,8 @@ def main():
                          "correct", "seconds", "status", "prompt_tokens", "retrieved",
                          "confidence", "scores"])
         for n, problem in enumerate(problems, 1):
-            result = solve(problem, index=index, k=args.rag, exclude_id=problem["id"])
+            result = solve(problem, index=index, k=args.rag, exclude_id=problem["id"],
+                           alpha=args.alpha)
             correct = result["answer"] == problem["label"]
             row = {**problem, **result, "correct": correct, "has_options": bool(problem.get("options"))}
             rows.append(row)
@@ -111,6 +114,11 @@ def main():
     truth = Counter(r["label"] for r in rows)
     print("\nLetters   " + "  ".join(f"{l}:{predicted[l]:>3}/{truth[l]:<3}" for l in "ABCDE"))
     print("          (predicted/true; a model that loves one letter shows up here)")
+    # How far the model's habits are from the key: the single number to watch
+    # when tuning CALIBRATION_ALPHA or --alpha.
+    excess = max("ABCDE", key=lambda l: predicted[l] - truth[l])
+    print(f"Letter bias: {excess} predicted {predicted[excess]} times, "
+          f"{truth[excess]} in the key (+{predicted[excess] - truth[excess]}).")
 
     # Does the model know when it is guessing? Confident answers should be right more often.
     buckets = [("0.0-0.4", 0.0, 0.4), ("0.4-0.6", 0.4, 0.6), ("0.6-0.8", 0.6, 0.8), ("0.8-1.0", 0.8, 1.01)]

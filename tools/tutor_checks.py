@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from copilot import topics  # noqa: E402
-from copilot.tutor import (Session, diagnose, leak_check, numbers,  # noqa: E402
+from copilot.tutor import (Session, diagnose, leak_check, looks_english, numbers,  # noqa: E402
                            option_values, word_number_values)
 
 PROBLEM = {
@@ -121,6 +121,16 @@ def main():
     check("no substring trap: candies is not time",
           topics.classify("Marc has 9 candies and 17 sweets.")["topic"] != "time")
 
+    print("\nCatalan, without a model")
+    check("Catalan method", topics.classify(PROBLEM["text"], "cat")["method"].startswith("Geometria"))
+    check("Catalan topic name", topics.display("geometry", "cat") == "geometria")
+    check("Catalan diagnosis differs", diagnose(CANDY, "A", "cat")["text"]
+          != diagnose(CANDY, "A", "eng")["text"])
+    check("an English hint is recognised",
+          looks_english("First add the numbers, then divide by the total."))
+    check("a Catalan hint is kept",
+          not looks_english("Primer suma els nombres i després divideix pel total."))
+
     print("\nA session, with no model and no index")
     tutor = FakeTutor(PROBLEM)
     session = Session(tutor)
@@ -148,9 +158,17 @@ def main():
     check("answer is not revealed", answered["revealed"] is False
           and answered["revealed_label"] is None)
     check("a diagnosis is offered", answered["diagnosis"]["text"] != "")
-    check("next problem is ready", answered["next_ready"] is True)
-    twice = session.answer("B")
-    check("answering twice is refused", "error" in twice)
+    check("next is not ready until the problem is solved", answered["next_ready"] is False)
+    check("the wrong letter is remembered",
+          [attempt["choice"] for attempt in answered["attempts"]] == ["A"])
+    twice = session.answer("A")
+    check("retrying the same wrong letter is refused", "error" in twice)
+    second = session.answer("B")
+    check("another wrong letter is accepted",
+          second["attempts"][-1]["choice"] == "B" and second["correct"] is False)
+    solved = session.answer("C")
+    check("the right letter is accepted", solved["correct"] is True)
+    check("next is ready after the right letter", solved["next_ready"] is True)
 
     nxt = session.next()
     check("the next problem is different", nxt["problem"]["id"] != "area", nxt["problem"]["id"])
@@ -181,29 +199,31 @@ class FakeTutor:
                                             "tutor-checks.db"))
         self.profile.reset()
 
-    def public(self, problem):
+    def public(self, problem, language=None):
         shown = {k: v for k, v in problem.items() if k != "label"}
         shown["key"] = f"{problem['id']}_{problem['language']}"
         shown["image"] = False
+        shown["image_key"] = shown["key"]
+        shown["image_language"] = problem["language"]
         shown["topic"] = topics.classify(problem["text"])["topic"]
         return shown
 
     def get(self, key):
         return self.by_key.get(key)
 
-    def check(self, problem, choice):
+    def check(self, problem, choice, language="eng"):
         result = {"correct": choice == problem["label"], "label": problem["label"],
                   "label_value": problem["options"].get(problem["label"]),
                   "chosen_value": problem["options"].get(choice)}
         if not result["correct"]:
-            result["diagnosis"] = diagnose(problem, choice)
+            result["diagnosis"] = diagnose(problem, choice, language)
         return result
 
-    def hint(self, problem, rung):
+    def hint(self, problem, rung, language="eng"):
         return {"rung": rung, "kind": "method", "text": "Try the method.", "status": "ok",
                 "seconds": 0.0, "detail": {}}
 
-    def reveal(self, problem):
+    def reveal(self, problem, start=None, language="eng"):
         return {"rung": 4, "kind": "solution", "status": "ok", "seconds": 0.0,
                 "text": f"The correct option is {problem['label']}) "
                         f"{problem['options'][problem['label']]}.",
