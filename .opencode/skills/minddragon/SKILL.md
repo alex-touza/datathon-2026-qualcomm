@@ -82,6 +82,7 @@ Then open `http://$(hostname -I | awk '{print $1}'):7000` on the same Wi-Fi. You
 What the demo does, in order:
 
 - Step 1 = a short nudge, Step 2 = nudge + working, Step 3 = the full solution. The steps are cumulative.
+- Hints are pre-warmed in the background when a problem appears, so pressing a step is usually instant. Step 3 depends on the model and may still take a few seconds.
 - Reveal is answer-only and needs an explicit second press.
 - With no precomputed solution, the same steps fall back to: an easier solved problem, then the method, then one model hint that is checked before it is shown.
 
@@ -111,4 +112,4 @@ If the page loads but hints fail, check `MODEL_HOST` and that both services list
 - **20.0%** over 50 problems **on the board**, 9.4 s mean, 15.2 s worst.
 - **437 verified explanations over 231 problems**, 206 in both English and Catalan (local database; it is not published).
 - **$0.0075** per generated explanation, once, at build time.
-- A cached hint is a database read (**~0 s**); the model hint is the slow path (seconds, not milliseconds).
+- A precomputed hint is a database read (**~0 s**); hints are also warmed in the background, so even an uncached step is usually ready before the student presses it. Step 3 is the only path that waits on the model.
