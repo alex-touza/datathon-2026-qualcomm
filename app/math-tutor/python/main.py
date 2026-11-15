@@ -3,9 +3,10 @@
 The page asks for a problem, a letter, a hint rung, reveal or next. Python does
 the work and mirrors it on the 8x13 LED matrix:
 
-    new problem  -> the level as a bar
-    hint         -> the rung number, then the level again
-    answer       -> a tick or a cross, then the level again
+    new problem  -> the level number
+    hint         -> the rung number, then the level number again
+    answer       -> a blink of the tick (right) or the cross (wrong), then the
+                    level number again
 
 Slow work (the model hint) runs in a thread; the page polls /api/state, so the
 LEDs never block the web page and the web page never blocks the model.
@@ -28,12 +29,19 @@ except ImportError:  # pragma: no cover - only when running outside App Lab
     Frame = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+APP = os.path.dirname(HERE)          # the App Lab app folder, mounted as /app
 
 
 def find_repo():
-    """The repository that holds copilot/tutor.py, on the board or on a laptop."""
+    """Where copilot/ and data/ live.
+
+    Inside App Lab only the app folder is mounted, so the app carries its own
+    copy: board/06_install_app.sh puts copilot/ and data/ next to python/.
+    On a laptop the repository is three levels up instead.
+    """
     candidates = [
         os.environ.get("MATH_TUTOR_REPO"),
+        APP,                                                      # self-contained app
         os.path.abspath(os.path.join(HERE, "..", "..", "..")),  # repo/app/math-tutor/python
         os.path.expanduser("~/datathon-UPC-maths-qualcomm-arduino-unoq"),
     ]
@@ -122,39 +130,62 @@ def glyph_grid(text):
     return grid
 
 
-def level_grid(level, top=6):
-    """A bar whose length is the level, so progress is visible from across the room."""
-    grid = np.zeros((8, 13), dtype=np.uint8)
-    level = max(0, min(top, int(level)))
-    filled = max(1, round(13 * (level + 1) / (top + 1)))
-    for row in (2, 3, 4, 5):
-        grid[row, :filled] = 7
-    for column in range(filled, 13):
-        grid[3, column] = 1
-        grid[4, column] = 1
-    return grid
+def level_number(level, top=7):
+    """The level as its own digit, centred, so the board and the page agree."""
+    return glyph_grid(str(max(0, min(top, int(level)))))
 
 
 def show(grid, hold=None, level=None):
-    """Draw now, and after `hold` seconds go back to the level bar."""
+    """Draw now, and after `hold` seconds go back to the level number."""
     GENERATION["n"] += 1
     generation = GENERATION["n"]
     _send(grid)
     if hold:
         def later():
             if GENERATION["n"] == generation and level is not None:
-                _send(level_grid(level))
+                _send(level_number(level))
         threading.Timer(hold, later).start()
+
+
+def show_sequence(frames, level=None):
+    """Draw each (pause, grid) in order, then leave the level number on.
+
+    The pause is what comes after that frame. A None grid draws a blank frame,
+    which is how the tick and the cross blink once before they settle: the
+    matrix must not flash more than three times a second, so the blank is long.
+    """
+    GENERATION["n"] += 1
+    generation = GENERATION["n"]
+    blank = np.zeros((8, 13), dtype=np.uint8) if np is not None else None
+
+    def step(index=0):
+        if GENERATION["n"] != generation:
+            return
+        if index >= len(frames):
+            if level is not None:
+                _send(level_number(level))
+            return
+        delay, grid = frames[index]
+        _send(grid if grid is not None else blank)
+        if delay:
+            threading.Timer(delay, step, args=(index + 1,)).start()
+        else:
+            step(index + 1)
+
+    step()
 
 
 def show_state_matrix(reason=None):
     level = SESSION.level
     if reason == "answer" and SESSION.result is not None:
-        show(glyph_grid("tick" if SESSION.result["correct"] else "cross"), hold=2.5, level=level)
+        symbol = glyph_grid("tick" if SESSION.result["correct"] else "cross")
+        # One blink, then the tick or the cross for a couple of seconds, then
+        # the level the student is on.
+        show_sequence([(0.18, symbol), (0.18, None), (2.2, symbol)], level=level)
     elif reason == "hint" and SESSION.hints:
         show(glyph_grid(str(SESSION.hints[-1]["rung"])), hold=2.0, level=level)
     else:
-        show(level_grid(level))
+        show(level_number(level))
 
 
 # --------------------------------------------------------------------------
@@ -166,9 +197,10 @@ HEALTH = {"at": 0.0, "llm": False, "embed": False}
 
 def servers():
     if time.time() - HEALTH["at"] > 10:
+        host = CONFIG.get("MODEL_HOST", "127.0.0.1")
         for name, port in (("llm", CONFIG["LLM_PORT"]), ("embed", CONFIG["EMBED_PORT"])):
             try:
-                HEALTH[name] = get(f"http://127.0.0.1:{port}/health", timeout=2).get("status") == "ok"
+                HEALTH[name] = get(f"http://{host}:{port}/health", timeout=2).get("status") == "ok"
             except (OSError, ValueError):
                 HEALTH[name] = False
         HEALTH["at"] = time.time()
@@ -194,6 +226,28 @@ def api_state():
 def api_first(level="0", language="eng"):
     with ACTION_LOCK:
         SESSION.start(level=int(level), language=language)
+    show_state_matrix()
+    return state()
+
+
+def api_topic(topic, level="0", language="eng"):
+    """Practise one topic, chosen with the chip at the top of the page."""
+    with ACTION_LOCK:
+        SESSION.start(level=int(level), language=language, topic=topic)
+    show_state_matrix()
+    return state()
+
+
+def api_reset():
+    """Start a fresh session with the same level and language. The page asks first.
+
+    The practice counters go back to zero here too, so the profile the page
+    shows matches the session that is starting.
+    """
+    with ACTION_LOCK:
+        if BUSY["on"]:
+            return {"error": "still working"}
+        SESSION.start(reset_profile=True)
     show_state_matrix()
     return state()
 
@@ -285,6 +339,8 @@ def api_image(key):
 UI = WebUI()
 UI.expose_api("GET", "/api/state", api_state)
 UI.expose_api("GET", "/api/first/{level}/{language}", api_first)
+UI.expose_api("GET", "/api/topic/{topic}/{level}/{language}", api_topic)
+UI.expose_api("GET", "/api/reset", api_reset)
 UI.expose_api("GET", "/api/answer/{key}/{letter}", api_answer)
 UI.expose_api("GET", "/api/hint/{key}/{rung}", api_hint)
 UI.expose_api("GET", "/api/reveal/{key}", api_reveal)

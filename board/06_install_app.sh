@@ -24,22 +24,46 @@ wait_for_health "${EMBED_PORT}" 5 && ok "embeddings on port ${EMBED_PORT}" \
 
 step "Copying the app"
 [ -d "$APP_SRC" ] || die "$APP_SRC is missing"
-if [ -d "$APP_DST" ]; then
-  warn "replacing $APP_DST"
-  rm -rf "$APP_DST"
+mkdir -p "$HOME/ArduinoApps" "$APP_DST"
+# App Lab mounts only the app folder in the container, so everything the tutor
+# reads at run time has to live inside it: the app files, copilot/, config.env
+# and the data the page shows. The practice profile in data/tutor.db is kept.
+cp -r "$APP_SRC"/. "$APP_DST"/
+rm -rf "$APP_DST/python/__pycache__" "$APP_DST/copilot" "$APP_DST/python/copilot"
+cp -r "$REPO_DIR/copilot" "$APP_DST/copilot"
+rm -rf "$APP_DST/copilot/__pycache__"
+cp "$REPO_DIR/config.env" "$APP_DST/config.env"
+# Inside the App Lab container 127.0.0.1 is the container itself; the model
+# servers run on the host and listen on the docker bridge address.
+grep -q '^MODEL_HOST=' "$APP_DST/config.env" || printf '%s\n' '' \
+  '# The App Lab container sees the host here, not on 127.0.0.1.' \
+  'MODEL_HOST=172.17.0.1' >> "$APP_DST/config.env"
+ok "app files and copilot/ in $APP_DST"
+
+step "Copying the data the page reads (about 150 MB the first time)"
+mkdir -p "$APP_DST/data"
+cp -f "$REPO_DIR/data/index.db" "$APP_DST/data/index.db"
+ok "data/index.db"
+if [ -d "$REPO_DIR/data/images" ]; then
+  cp -r "$REPO_DIR/data/images" "$APP_DST/data/"
+  ok "data/images"
+else
+  warn "data/images is missing: problems show without figures"
 fi
-mkdir -p "$HOME/ArduinoApps"
-cp -r "$APP_SRC" "$APP_DST"
-ok "$APP_DST"
+if [ -f "$REPO_DIR/data/explanations.db" ]; then
+  cp -f "$REPO_DIR/data/explanations.db" "$APP_DST/data/explanations.db"
+  ok "data/explanations.db"
+fi
+[ -f "$APP_DST/data/tutor.db" ] && ok "keeping the practice profile data/tutor.db"
 
 step "How to run it"
 echo "  Open it in App Lab, or from here:"
-echo "    arduino-app-cli app start user:math-tutor"
+echo "    arduino-app-cli app start $APP_DST"
 echo "  Logs:  arduino-app-cli app logs $APP_DST --all"
 echo "  Page:  http://\$(hostname -I | awk '{print \$1}'):7000"
 echo "  Web page only, no matrix:  python3 explorer/tutor_server.py --host 0.0.0.0"
 
 if [ "${1:-}" = "--start" ]; then
   step "Starting"
-  arduino-app-cli app start user:math-tutor
+  arduino-app-cli app restart "$APP_DST" 2>/dev/null || arduino-app-cli app start "$APP_DST"
 fi

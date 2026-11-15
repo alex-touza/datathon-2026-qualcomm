@@ -54,7 +54,17 @@
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .chips .chip { flex: 0 1 auto; }
   .chip.strong { background: var(--accent-soft); border-color: #bcd6f7; color: var(--accent); font-weight: 600; }
+  /* The level chip is a button: it opens the picker that jumps to any level. */
+  button.chip { font: inherit; font-size: 13px; cursor: pointer; }
+  button.chip:hover:not(:disabled) { border-color: var(--accent); }
+  button.chip:disabled { cursor: default; }
+  .level-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .level-row button { min-width: 48px; justify-content: center; }
   .spacer { flex: 1; }
+  /* The right-hand controls wrap as one block, so the language buttons do not
+     end up alone on a second line when the header is full. */
+  .tools { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
+           justify-content: flex-end; margin-left: auto; }
   .grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 18px; }
   @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } body { padding: 16px 12px 56px; } }
   .card {
@@ -64,7 +74,10 @@
   .card + .card { margin-top: 14px; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
        margin: 0 0 10px; font-weight: 700; }
-  .problem { white-space: pre-wrap; font-size: 19px; line-height: 1.6; }
+  .problem { font-size: 19px; line-height: 1.6; }
+  /* Only the statement keeps its line breaks: the container must not, or the
+     blank lines in the markup would push the picture down the card. */
+  #text { white-space: pre-wrap; }
   .problem.image-only { margin-top: 0; }
   .problem img { display: block; width: calc(100% + 24px); max-width: calc(100% + 24px);
                  max-height: 78vh; object-fit: contain; margin: 14px -12px 6px;
@@ -170,6 +183,69 @@
                              margin-bottom: 6px; }
   .report-chart svg { display: block; }
   body.dark .report-chart { background: #101a24; }
+  /* Restarting throws away the problem on screen, so it asks first: one small
+     dialog over a dimmed page, with the same colours as everything else. */
+  .modal { position: fixed; inset: 0; z-index: 50; background: rgba(10, 18, 26, .55);
+           display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .dialog { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+            padding: 22px 24px; width: 100%; max-width: 430px;
+            box-shadow: 0 18px 50px rgba(10, 18, 26, .35); }
+  .dialog h2 { font-size: 18px; text-transform: none; letter-spacing: 0;
+               color: var(--ink); margin: 0 0 8px; font-weight: 700; }
+  .dialog p { margin: 0; color: var(--muted); font-size: 15px; }
+  .dialog .actions { justify-content: flex-end; margin-top: 20px; }
+  body.dark .dialog { box-shadow: 0 18px 50px rgba(0, 0, 0, .55); }
+
+  /* A run of clean answers: a small flame with the count written above it. */
+  .streak { display: inline-flex; flex-direction: column; align-items: center;
+            line-height: 1; padding: 1px 6px 0; border-radius: 10px; color: #b45309; }
+  .streak .num { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .flame { width: 20px; height: 25px; display: block; }
+  .flame .outer { fill: #f97316; }
+  .flame .inner { fill: #fbbf24; }
+  .streak.hot .flame .outer { fill: #ef4444; }
+  .streak.hot .flame .inner { fill: #fb923c; }
+  .streak.bump .flame { animation: flare .55s ease-out; }
+  @keyframes flare {
+    0%   { transform: scale(.82) rotate(-3deg); }
+    45%  { transform: scale(1.22) rotate(3deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  body.dark .streak { color: #fbbf24; }
+
+  /* The milestone message: one line, over the page, gone by itself. */
+  .toast { position: fixed; left: 50%; bottom: 26px; z-index: 60;
+           transform: translateX(-50%) translateY(14px);
+           display: flex; align-items: center; gap: 12px;
+           max-width: calc(100% - 32px); padding: 12px 18px;
+           background: var(--card); color: var(--ink); border: 1px solid var(--line);
+           border-radius: 14px; box-shadow: 0 12px 34px rgba(10, 18, 26, .22);
+           font-weight: 700; cursor: pointer; opacity: 0; pointer-events: none;
+           transition: opacity .25s ease, transform .25s ease; }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .toast .flame { width: 24px; height: 30px; flex: none; }
+  .toast small { display: block; font-weight: 500; font-size: 13px; color: var(--muted); }
+
+  /* Text to speech: one button for the statement, one speaker per option. */
+  .speaker { width: 18px; height: 18px; flex: none; }
+  button.action.mini { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; }
+  /* The listen button belongs to the statement but never covers it: it sits at
+     the top of the card, above the text, and above the picture when the
+     statement is an image. */
+  .speak-float { display: flex; margin-bottom: 8px; }
+  .card.image-mode .speak-float { padding-top: 10px; }
+  /* .options button above sets width:100%, so the option row rules name the
+     li explicitly and the speaker wins its own size back. */
+  .options li { display: flex; align-items: center; gap: 8px; }
+  .options li > button.option { flex: 1 1 auto; width: auto; min-width: 0; }
+  .options li > .speak-mini { flex: none; display: inline-grid; place-items: center;
+                              width: 38px; height: 38px; padding: 0; cursor: pointer;
+                              border: 1.5px solid var(--line); border-radius: 10px;
+                              background: var(--card); color: var(--muted); }
+  .options li > .speak-mini:hover { border-color: var(--accent); color: var(--accent); }
+  .options li > .speak-mini.speak-on { color: var(--accent); border-color: var(--accent);
+                                       background: var(--accent-soft); }
+  body.dark .options li > .speak-mini { background: #101a24; }
 
   /* Dark mode: the moon button at the top flips these; the preference is kept
      in the browser, and the page starts in the system colour scheme. */
@@ -201,25 +277,34 @@
 <main>
   <header>
     <h1 id="title">MindDragon</h1>
-    <span class="chip strong" id="level">level –</span>
-    <span class="chip" id="topic">topic –</span>
+    <button class="chip strong level-jump" id="level" type="button">level –</button>
+    <button class="chip" id="topic" type="button">topic –</button>
     <span class="chip" id="progress">0 right / 0</span>
+    <span class="streak" id="streak" hidden title="Clean answers in a row">
+      <span class="num" id="streak-count">0</span>
+      <svg class="flame" viewBox="0 0 24 30" aria-hidden="true">
+        <path class="outer" d="M12 1.4c4.3 5.8 7 9.1 7 13.4a7 7 0 0 1-14 0c0-4.3 2.7-7.6 7-13.4z"/>
+        <path class="inner" d="M12 11.3c2 2.9 3.4 4.5 3.4 6.6a3.4 3.4 0 0 1-6.8 0c0-2.1 1.4-3.7 3.4-6.6z"/>
+      </svg>
+    </span>
     <span class="spacer"></span>
-    <span class="busy" id="busy"><span class="pulse"></span>thinking…</span>
-    <button class="action quiet" id="finish" type="button">End session</button>
-    <button class="action icon-btn" id="theme" type="button" aria-label="Dark mode" title="Dark mode">
-      <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
-        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/>
-      </svg>
-      <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
-        <circle cx="12" cy="12" r="4.1" fill="currentColor"/>
-        <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-          <path d="M12 2.2v2.1M12 19.7v2.1M2.2 12h2.1M19.7 12h2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M19.1 4.9l-1.5 1.5M6.4 17.6l-1.5 1.5"/>
-        </g>
-      </svg>
-    </button>
-    <button class="action quiet" id="lang-en">English</button>
-    <button class="action quiet" id="lang-ca">Català</button>
+    <span class="tools">
+      <span class="busy" id="busy"><span class="pulse"></span>thinking…</span>
+      <button class="action quiet" id="finish" type="button">End session</button>
+      <button class="action icon-btn" id="theme" type="button" aria-label="Dark mode" title="Dark mode">
+        <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.1" fill="currentColor"/>
+          <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M12 2.2v2.1M12 19.7v2.1M2.2 12h2.1M19.7 12h2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M19.1 4.9l-1.5 1.5M6.4 17.6l-1.5 1.5"/>
+          </g>
+        </svg>
+      </button>
+      <button class="action quiet" id="lang-en">English</button>
+      <button class="action quiet" id="lang-ca">Català</button>
+    </span>
   </header>
 
   <div class="grid">
@@ -227,6 +312,16 @@
       <div class="card">
         <h2 id="h-problem">Problem</h2>
         <div class="problem">
+          <div class="speak-float">
+            <button class="action quiet mini" id="speak-text" type="button" hidden>
+              <svg class="speaker" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 9.4h3.3L12 5.2v13.6L7.3 14.6H4z" fill="currentColor"/>
+                <path d="M15.6 8.7a4.7 4.7 0 0 1 0 6.6M18.2 6.1a8.2 8.2 0 0 1 0 11.8" fill="none"
+                      stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <span id="speak-text-label">Listen</span>
+            </button>
+          </div>
           <span id="text">Loading…</span>
           <img id="figure" alt="" hidden>
         </div>
@@ -285,6 +380,54 @@
     <span id="footer-help">Offline. Nothing leaves the board. Keys: A–E answer, H hint, N next.</span>
   </div>
 </main>
+
+<div class="toast" id="streak-toast" role="status" aria-live="polite"></div>
+
+<div class="modal" id="confirm-restart" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-restart-title">
+    <h2 id="confirm-restart-title">Restart the session?</h2>
+    <p id="confirm-restart-body">The problem on screen, its hints and the practice counters go back to zero, and a new session starts from another problem.</p>
+    <div class="actions">
+      <button class="action quiet" id="confirm-restart-no" type="button">Cancel</button>
+      <button class="action primary" id="confirm-restart-yes" type="button">Yes, restart</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="next-ask" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="next-ask-title">
+    <h2 id="next-ask-title">Not solved yet</h2>
+    <p id="next-ask-body">You can ask for a hint, see the solution, or move on to another problem.</p>
+    <div class="actions">
+      <button class="action" id="next-ask-hint" type="button">Ask for a hint</button>
+      <button class="action" id="next-ask-reveal" type="button">Show the solution</button>
+      <button class="action quiet" id="next-ask-skip" type="button">Next problem anyway</button>
+      <button class="action quiet" id="next-ask-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="topic-picker" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="topic-picker-title">
+    <h2 id="topic-picker-title">Choose a topic</h2>
+    <p id="topic-picker-body" class="empty">Every next problem comes from the topic you pick.</p>
+    <div class="level-row" id="topic-choices"></div>
+    <div class="actions">
+      <button class="action quiet" id="topic-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="level-picker" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="level-picker-title">
+    <h2 id="level-picker-title">Choose a level</h2>
+    <p id="level-picker-body" class="empty">0 is the easiest and 7 the hardest. The problem on screen changes.</p>
+    <div class="level-row" id="level-choices"></div>
+    <div class="actions">
+      <button class="action quiet" id="level-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
   "use strict";
@@ -368,6 +511,36 @@
       showFeedback: "Feedback",
       showCharts: "Charts",
       restart: "Practise again",
+      restartConfirmTitle: "Restart the session?",
+      restartConfirmBody: "The problem on screen, its hints and the practice counters go back to zero, and a new session starts from another problem.",
+      restartYes: "Yes, restart",
+      restartNo: "Cancel",
+      levelJump: "Choose a level",
+      levelTitle: "Choose a level",
+      levelBody: "0 is the easiest and 7 the hardest. The problem on screen changes.",
+      levelCancel: "Cancel",
+      topicJump: "Choose a topic",
+      topicTitle: "Choose a topic",
+      topicBody: "Every next problem comes from the topic you pick.",
+      topicAll: "All topics",
+      topicCancel: "Cancel",
+      nextAskTitle: "Not solved yet",
+      nextAskBody: "You can ask for a hint, see the solution, or move on to another problem.",
+      nextAskHint: "Ask for a hint",
+      nextAskReveal: "Show the solution",
+      nextAskSkip: "Next problem anyway",
+      nextAskCancel: "Cancel",
+      streakTitle: "Clean answers in a row",
+      streakLine: (n) => n + " in a row",
+      streakMsg: {3: "Three in a row. Keep it going.",
+                  5: "Five in a row. The fire is growing.",
+                  10: "Ten in a row. That is a real streak.",
+                  25: "Twenty-five in a row. You are on fire.",
+                  50: "Fifty in a row. The dragon is impressed.",
+                  100: "A hundred in a row. Legendary."},
+      listen: "Listen",
+      listenProblem: "Listen to the problem",
+      listenOption: (letter) => "Listen to option " + letter,
       reportError: "The report is not ready yet.",
       foreignProblem: (name) => "The question bank has no English version of this problem yet; its text is in " + name + ".",
     },
@@ -432,6 +605,36 @@
       showFeedback: "Feedback",
       showCharts: "Gràfics",
       restart: "Torna a practicar",
+      restartConfirmTitle: "Vols reiniciar la sessió?",
+      restartConfirmBody: "El problema que tens a la pantalla, les pistes i els comptes de pràctica tornaran a zero, i començarà una sessió nova amb un altre problema.",
+      restartYes: "Sí, reinicia",
+      restartNo: "Cancel·la",
+      levelJump: "Tria un nivell",
+      levelTitle: "Tria un nivell",
+      levelBody: "El 0 és el més fàcil i el 7 el més difícil. El problema de la pantalla canvia.",
+      levelCancel: "Cancel·la",
+      topicJump: "Tria un tema",
+      topicTitle: "Tria un tema",
+      topicBody: "Tots els problemes següents seran del tema que triïs.",
+      topicAll: "Tots els temes",
+      topicCancel: "Cancel·la",
+      nextAskTitle: "Encara no l'has resolt",
+      nextAskBody: "Pots demanar una pista, veure la solució o passar a un altre problema.",
+      nextAskHint: "Demana una pista",
+      nextAskReveal: "Mostra la solució",
+      nextAskSkip: "Passa al següent igualment",
+      nextAskCancel: "Cancel·la",
+      streakTitle: "Encerts seguits al primer intent",
+      streakLine: (n) => n + " encerts seguits",
+      streakMsg: {3: "Tres encerts seguits. No afluixis.",
+                  5: "Cinc encerts seguits. El foc creix.",
+                  10: "Deu encerts seguits. Això ja és una ratxa.",
+                  25: "Vint-i-cinc encerts seguits. Estàs que cremes.",
+                  50: "Cinquanta encerts seguits. El drac està impressionat.",
+                  100: "Cent encerts seguits. Llegendari."},
+      listen: "Escolta",
+      listenProblem: "Escolta el problema",
+      listenOption: (letter) => "Escolta l'opció " + letter,
       reportError: "L'informe encara no està llest.",
       foreignProblem: (name) => "El banc de problemes encara no té aquest problema en català; el text és en " + name + ".",
     },
@@ -482,6 +685,7 @@
   let report = null;
   let showFeedback = false;
   let showCharts = false;
+  let restartQuestion = null;   // the "are you sure?" dialog, while it is open
   const imageCache = new Map();
 
   const el = (id) => document.getElementById(id);
@@ -531,6 +735,112 @@
     button.setAttribute("aria-pressed", String(darkMode));
     button.title = darkMode ? T().lightMode : T().darkMode;
     button.setAttribute("aria-label", button.title);
+  }
+
+  // ---------------------------------------------------------------------
+  // Text to speech. The page asks the browser to read the statement and the
+  // options; there is no network involved, and where a voice for the language
+  // is missing the browser falls back to its default one.
+  // ---------------------------------------------------------------------
+  const FLAME_SVG = '<svg class="flame" viewBox="0 0 24 30" aria-hidden="true">' +
+    '<path class="outer" d="M12 1.4c4.3 5.8 7 9.1 7 13.4a7 7 0 0 1-14 0c0-4.3 2.7-7.6 7-13.4z"/>' +
+    '<path class="inner" d="M12 11.3c2 2.9 3.4 4.5 3.4 6.6a3.4 3.4 0 0 1-6.8 0' +
+    'c0-2.1 1.4-3.7 3.4-6.6z"/></svg>';
+  const SPEAKER_SVG = '<svg class="speaker" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M4 9.4h3.3L12 5.2v13.6L7.3 14.6H4z" fill="currentColor"/>' +
+    '<path d="M15.6 8.7a4.7 4.7 0 0 1 0 6.6M18.2 6.1a8.2 8.2 0 0 1 0 11.8" fill="none"' +
+    ' stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+  const speech = window.speechSynthesis || null;
+  let voices = [];
+  let onAir = null;            // {text, node} while the page is reading aloud
+
+  function refreshVoices() {
+    if (speech) voices = speech.getVoices() || [];
+  }
+  if (speech) {
+    refreshVoices();
+    speech.onvoiceschanged = refreshVoices;   // voices arrive late in some browsers
+  }
+
+  function speechLang(code) {
+    return code === "cat" ? "ca-ES" : "en-US";
+  }
+  function stopSpeech() {
+    if (speech) speech.cancel();
+    if (onAir && onAir.node) onAir.node.classList.remove("speak-on");
+    onAir = null;
+  }
+
+  /** Read one piece of text; a second press on the same button stops it. */
+  function speak(text, node) {
+    if (!speech || !text) return;
+    const clean = String(text).replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    const again = !!(onAir && onAir.text === clean && onAir.node === node);
+    stopSpeech();
+    if (again) return;
+    // The page's own language chooses the voice: the English page reads in
+    // English, the Catalan page in Catalan, whatever the text happens to be.
+    const wanted = speechLang(lang);
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = wanted;
+    utterance.rate = 0.95;
+    const lower = wanted.toLowerCase();
+    const voice = voices.find((v) => String(v.lang).toLowerCase().replace("_", "-") === lower)
+      || voices.find((v) => String(v.lang).toLowerCase().slice(0, 2) === lower.slice(0, 2));
+    if (voice) utterance.voice = voice;
+    onAir = {text: clean, node};
+    if (node) node.classList.add("speak-on");
+    utterance.onend = () => {
+      if (!onAir || onAir.node !== node) return;
+      onAir = null;
+      if (node) node.classList.remove("speak-on");
+    };
+    utterance.onerror = utterance.onend;
+    speech.speak(utterance);
+  }
+
+  // ---------------------------------------------------------------------
+  // The streak: clean answers in a row, drawn as a flame, with one message
+  // each time the run reaches a milestone the board knows about.
+  // ---------------------------------------------------------------------
+  let lastStreak = 0;
+  let lastStreakEvent = 0;
+  let streakToastTimer = null;
+
+  function renderStreak() {
+    const badge = el("streak");
+    const streak = Number((state && state.streak) || 0);
+    el("streak-count").textContent = String(streak);
+    badge.title = T().streakTitle;
+    badge.hidden = streak < 2;
+    badge.classList.toggle("hot", streak >= 10);
+    if (streak > lastStreak) {
+      badge.classList.remove("bump");
+      void badge.offsetWidth;          // force a reflow so the flare replays
+      badge.classList.add("bump");
+    }
+    lastStreak = streak;
+  }
+
+  function showStreakToast(streak) {
+    const box = el("streak-toast");
+    const message = T().streakMsg[streak];
+    if (!message) return;
+    const holder = document.createElement("div");
+    holder.innerHTML = FLAME_SVG;
+    const words = document.createElement("div");
+    const line = document.createElement("div");
+    line.textContent = message;
+    const small = document.createElement("small");
+    small.textContent = T().streakLine(streak);
+    words.append(line, small);
+    box.textContent = "";
+    box.append(holder.firstElementChild, words);
+    box.classList.add("on");
+    clearTimeout(streakToastTimer);
+    streakToastTimer = setTimeout(() => box.classList.remove("on"), 7000);
   }
 
   /** Images come as base64 over the same JSON API, so one page works on both servers. */
@@ -635,7 +945,20 @@
         button.classList.remove("wrong");
       }
       button.onclick = () => act(`/api/answer/${encodeURIComponent(problem.key)}/${letter}`, T().busyChecking);
+      button.classList.add("option");
       item.append(button);
+      // A separate speaker, because a button cannot live inside a button. It
+      // reads the letter and the value in the language of the problem.
+      if (speech && options[letter]) {
+        const sound = document.createElement("button");
+        sound.type = "button";
+        sound.className = "speak-mini";
+        sound.innerHTML = SPEAKER_SVG;
+        sound.title = T().listenOption(letter);
+        sound.setAttribute("aria-label", sound.title);
+        sound.onclick = () => speak(letter + ". " + options[letter], sound);
+        item.append(sound);
+      }
       list.append(item);
     }
     if (!letters.length) {
@@ -841,6 +1164,7 @@
 
   async function finishSession() {
     if (busy) return;
+    stopSpeech();
     showFeedback = false;
     showCharts = false;
     report = null;
@@ -849,6 +1173,155 @@
       await loadReport();
       render();
     }
+  }
+
+  /** Restarting throws the current problem away, so ask once, in the page. */
+  function confirmRestart() {
+    if (restartQuestion) return Promise.resolve(false);
+    const t = T();
+    el("confirm-restart-title").textContent = t.restartConfirmTitle;
+    el("confirm-restart-body").textContent = t.restartConfirmBody;
+    el("confirm-restart-yes").textContent = t.restartYes;
+    el("confirm-restart-no").textContent = t.restartNo;
+    el("confirm-restart").hidden = false;
+    el("confirm-restart-no").focus();
+    return new Promise((done) => { restartQuestion = done; });
+  }
+
+  /** Close the dialog and hand the answer to whoever is waiting for it. */
+  function answerRestart(yes) {
+    if (!restartQuestion) return;
+    const done = restartQuestion;
+    restartQuestion = null;
+    el("confirm-restart").hidden = true;
+    done(yes);
+  }
+
+  async function restartSession() {
+    if (busy) return;
+    if (!await confirmRestart()) return;
+    stopSpeech();
+    clearTimeout(streakToastTimer);
+    el("streak-toast").classList.remove("on");
+    report = null;
+    showFeedback = false;
+    showCharts = false;
+    buildReportPanels();
+    await act("/api/reset", T().busyLang);
+  }
+
+  /** True while any of the page's questions is open: it owns the keyboard. */
+  function dialogOpen() {
+    return !!restartQuestion || !el("next-ask").hidden
+      || !el("level-picker").hidden || !el("topic-picker").hidden;
+  }
+
+  function closeModals() {
+    if (restartQuestion) answerRestart(false);
+    el("next-ask").hidden = true;
+    el("level-picker").hidden = true;
+    el("topic-picker").hidden = true;
+  }
+
+  /** "Next" with the problem still unsolved: ask what to do instead of refusing. */
+  function askNextChoice() {
+    const t = T();
+    el("next-ask-title").textContent = t.nextAskTitle;
+    el("next-ask-body").textContent = t.nextAskBody;
+    el("next-ask-hint").textContent = t.nextAskHint;
+    el("next-ask-reveal").textContent = t.nextAskReveal;
+    el("next-ask-skip").textContent = t.nextAskSkip;
+    el("next-ask-cancel").textContent = t.nextAskCancel;
+    // Nothing to offer when there is no rung left or the solution is showing.
+    el("next-ask-hint").disabled = el("hint").disabled;
+    el("next-ask-reveal").disabled = el("reveal").disabled;
+    el("next-ask").hidden = false;
+    el("next-ask-cancel").focus();
+  }
+
+  function goNext() {
+    if (!state || !state.problem || busy) return;
+    revealArmed = false;
+    act(`/api/next/${encodeURIComponent(state.problem.key)}`, T().busyNext);
+  }
+
+  function revealNow() {
+    if (!state || !state.problem || busy) return;
+    clearTimeout(revealTimer);
+    revealArmed = false;
+    act(`/api/reveal/${encodeURIComponent(state.problem.key)}`, T().busyReveal);
+  }
+
+  /** Start over from another level or topic, throwing the current run away. */
+  async function startOver(path) {
+    if (busy) return;
+    stopSpeech();
+    clearTimeout(streakToastTimer);
+    el("streak-toast").classList.remove("on");
+    report = null;
+    showFeedback = false;
+    showCharts = false;
+    buildReportPanels();
+    await act(path, T().busyLang);
+  }
+
+  /** Jump to another level: a new session there, in the language already chosen. */
+  async function jumpToLevel(level) {
+    await startOver(`/api/first/${level}/${encodeURIComponent(lang)}`);
+  }
+
+  /** Practise one topic: the server keeps every next problem in that topic. */
+  async function jumpToTopic(topic) {
+    const level = (state && state.level) || 0;
+    await startOver(`/api/topic/${encodeURIComponent(topic)}/${level}/${encodeURIComponent(lang)}`);
+  }
+
+  function openTopicPicker() {
+    if (busy || !state) return;
+    const t = T();
+    el("topic-picker-title").textContent = t.topicTitle;
+    el("topic-picker-body").textContent = t.topicBody;
+    el("topic-cancel").textContent = t.topicCancel;
+    const names = TOPIC_NAMES[lang] || TOPIC_NAMES.eng;
+    const box = el("topic-choices");
+    box.textContent = "";
+    for (const item of state.topics || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "action" + (item.topic === state.topic_filter ? " active" : "");
+      button.textContent = (names[item.topic] || item.topic) + " · " + item.count;
+      button.onclick = () => { closeModals(); jumpToTopic(item.topic); };
+      box.append(button);
+    }
+    // Any topic again: the normal adaptive session.
+    const all = document.createElement("button");
+    all.type = "button";
+    all.className = "action quiet" + (state.topic_filter ? "" : " active");
+    all.textContent = t.topicAll;
+    all.onclick = () => { closeModals(); jumpToLevel((state && state.level) || 0); };
+    box.append(all);
+    el("topic-picker").hidden = false;
+    el("topic-cancel").focus();
+  }
+
+  function openLevelPicker() {
+    if (busy || !state) return;
+    const t = T();
+    el("level-picker-title").textContent = t.levelTitle;
+    el("level-picker-body").textContent = t.levelBody;
+    el("level-cancel").textContent = t.levelCancel;
+    const box = el("level-choices");
+    box.textContent = "";
+    for (let level = 0; level <= 7; level += 1) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "action" + (level === state.level ? " active" : "");
+      button.textContent = String(level);
+      button.onclick = () => { closeModals(); jumpToLevel(level); };
+      box.append(button);
+    }
+    el("level-picker").hidden = false;
+    el("level-cancel").focus();
   }
 
   function renderHintButton() {
@@ -891,6 +1364,7 @@
     const problem = state.problem;
     if (problem && problem.key !== lastKey) {
       lastKey = problem.key;
+      stopSpeech();              // the previous statement must not read on
       cooldownUntil = 0;         // a new problem starts with its first hint ready
       answerCooldownUntil = 0;   // and with every option available
     }
@@ -956,9 +1430,18 @@
     renderBanner();
     renderHints();
     renderProfile();
+    renderStreak();
+    const celebration = Number((state && state.streak_event) || 0);
+    if (celebration === 0) {
+      lastStreakEvent = 0;       // a restart starts the run again from zero
+    } else if (celebration !== lastStreakEvent) {
+      lastStreakEvent = celebration;
+      showStreakToast(Number(state.streak_milestone || 0));
+    }
 
     const nextButton = el("next");
-    nextButton.disabled = busy || !problem || !isSolved();
+    // Never refused: with the problem unsolved it asks hint, solution or skip.
+    nextButton.disabled = busy || !problem;
     nextButton.textContent = t.next;
 
     const revealButton = el("reveal");
@@ -968,8 +1451,19 @@
     renderHintButton();
     if (!busy) el("busy").lastChild.textContent = " " + t.thinking;
     el("finish").textContent = t.finish;
+    const readable = !!(problem && problem.text && String(problem.text).trim());
+    el("speak-text").hidden = !speech || !readable;
+    el("speak-text-label").textContent = t.listen;
+    el("speak-text").title = t.listenProblem;
+    el("speak-text").setAttribute("aria-label", t.listenProblem);
     el("dot-llm").className = "dot " + (state.servers && state.servers.llm ? "up" : "down");
     el("dot-embed").className = "dot " + (state.servers && state.servers.embed ? "up" : "down");
+    el("level").disabled = busy;
+    el("level").title = t.levelJump;
+    el("level").setAttribute("aria-label", t.levelJump);
+    el("topic").disabled = busy;
+    el("topic").title = t.topicJump;
+    el("topic").setAttribute("aria-label", t.topicJump);
     renderEnd();
   }
 
@@ -978,9 +1472,9 @@
     act(`/api/hint/${encodeURIComponent(state.problem.key)}/${state.next_rung}`, T().busyHint);
   };
   el("next").onclick = () => {
-    if (!state || !state.problem) return;
-    revealArmed = false;
-    act(`/api/next/${encodeURIComponent(state.problem.key)}`, T().busyNext);
+    if (!state || !state.problem || busy) return;
+    if (isSolved()) goNext();
+    else askNextChoice();
   };
   el("reveal").onclick = () => {
     if (!state || !state.problem || busy) return;
@@ -990,10 +1484,31 @@
       revealTimer = setTimeout(() => { revealArmed = false; render(); }, 5000);
       return;
     }
-    clearTimeout(revealTimer);
-    revealArmed = false;
-    act(`/api/reveal/${encodeURIComponent(state.problem.key)}`, T().busyReveal);
+    revealNow();
   };
+  el("level").onclick = () => openLevelPicker();
+  el("topic").onclick = () => openTopicPicker();
+  el("next-ask-hint").onclick = () => {
+    el("next-ask").hidden = true;
+    if (!el("hint").disabled) el("hint").click();
+  };
+  el("next-ask-reveal").onclick = () => {
+    el("next-ask").hidden = true;
+    revealNow();
+  };
+  el("next-ask-skip").onclick = () => {
+    el("next-ask").hidden = true;
+    goNext();
+  };
+  el("next-ask-cancel").onclick = () => { el("next-ask").hidden = true; };
+  el("level-cancel").onclick = () => { el("level-picker").hidden = true; };
+  el("topic-cancel").onclick = () => { el("topic-picker").hidden = true; };
+  // Clicking the dimmed page around a question closes it.
+  for (const id of ["next-ask", "level-picker", "topic-picker"]) {
+    el(id).onclick = (event) => {
+      if (event.target === el(id)) el(id).hidden = true;
+    };
+  }
   el("lang-en").onclick = () => act("/api/first/0/eng", I18N.eng.busyLang);
   el("lang-ca").onclick = () => act("/api/first/0/cat", I18N.cat.busyLang);
   el("theme").onclick = () => {
@@ -1010,16 +1525,32 @@
     showCharts = !showCharts;
     renderEnd();
   };
-  el("restart").onclick = async () => {
-    report = null;
-    showFeedback = false;
-    showCharts = false;
-    buildReportPanels();
-    await act("/api/reset", T().busyLang);
+  el("restart").onclick = () => restartSession();
+  el("speak-text").onclick = () => {
+    if (state && state.problem) speak(state.problem.text, el("speak-text"));
+  };
+  el("streak-toast").onclick = () => {
+    clearTimeout(streakToastTimer);
+    el("streak-toast").classList.remove("on");
+  };
+  el("confirm-restart-yes").onclick = () => answerRestart(true);
+  el("confirm-restart-no").onclick = () => answerRestart(false);
+  // Clicking the dimmed page around the dialog counts as "no".
+  el("confirm-restart").onclick = (event) => {
+    if (event.target === el("confirm-restart")) answerRestart(false);
   };
 
   document.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    // While a question is open it owns the keyboard: Escape closes it, and no
+    // letter can reach the problem behind it.
+    if (dialogOpen()) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeModals();
+      }
+      return;
+    }
     const key = event.key.toUpperCase();
     if ((key === "H") && !el("hint").disabled) el("hint").click();
     else if ((key === "N") && !el("next").disabled) el("next").click();

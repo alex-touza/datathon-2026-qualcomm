@@ -50,7 +50,8 @@ def parse_args():
 
 def server_is_up(port):
     try:
-        return get(f"http://127.0.0.1:{port}/health", timeout=2).get("status") == "ok"
+        host = CONFIG.get("MODEL_HOST", "127.0.0.1")
+        return get(f"http://{host}:{port}/health", timeout=2).get("status") == "ok"
     except (OSError, ValueError):
         return False
 
@@ -140,8 +141,15 @@ def make_handler(app):
                     level = int(parts[2]) if len(parts) > 2 else 0
                     language = parts[3] if len(parts) > 3 else "eng"
                     return self.act(app.session.start(level=level, language=language))
+                if parts[:2] == ["api", "topic"] and len(parts) >= 5:
+                    # Practise one topic: /api/topic/<topic>/<level>/<language>
+                    topic, level, language = parts[2], int(parts[3]), parts[4]
+                    return self.act(app.session.start(level=level, language=language,
+                                                      topic=topic))
                 if parts[:2] == ["api", "reset"]:
-                    return self.act(app.session.start())
+                    # A restart starts counting from zero: the practice profile
+                    # the page shows goes with the session.
+                    return self.act(app.session.start(reset_profile=True))
                 if parts[:2] == ["api", "finish"]:
                     return self.act(app.session.finish())
                 if parts[:2] == ["api", "report"]:

@@ -4,7 +4,7 @@ import time
 from .config import CONFIG
 from .client import post
 
-URL = f"http://127.0.0.1:{CONFIG['LLM_PORT']}/v1/chat/completions"
+URL = f"http://{CONFIG.get('MODEL_HOST', '127.0.0.1')}:{CONFIG['LLM_PORT']}/v1/chat/completions"
 
 # Keep the system prompt stable: llama-server caches the start of the prompt,
 # so text that never changes is only read once.

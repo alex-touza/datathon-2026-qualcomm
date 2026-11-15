@@ -37,6 +37,8 @@ from .rag import keyword_score
 LETTERS = "ABCDE"
 MAX_LEVEL = 7          # M3Kang levels run 0 (easiest) to 7 (hardest)
 SEED = int(CONFIG["SEED"])
+# A run of clean answers worth celebrating; the page owns the wording.
+STREAK_MILESTONES = (3, 5, 10, 25, 50, 100)
 
 # --------------------------------------------------------------------------
 # Text and numbers
@@ -771,18 +773,59 @@ class Tutor:
 
     # -- adaptive practice ---------------------------------------------------
 
-    def first_problem(self, level=1, language="eng", seed=None):
+    def topic_of(self, problem):
+        """The topic label of a problem, classified once and then remembered."""
+        cache = getattr(self, "_topic_of", None)
+        if cache is None:
+            cache = self._topic_of = {}
+        known = cache.get(problem.get("id"))
+        if known is None:
+            known = topics.classify(problem.get("text", ""))["topic"]
+            cache[problem.get("id")] = known
+        return known
+
+    def topic_counts(self, language="eng"):
+        """How many problems each topic has, for the page's picker."""
+        counts = {}
+        for _key, problem, _vector in self.rows:
+            if problem.get("language") != language:
+                continue
+            name = self.topic_of(problem)
+            counts[name] = counts.get(name, 0) + 1
+        return [{"topic": name, "count": count}
+                for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+
+    def topic_pool(self, topic, language="eng"):
+        """Every problem of one topic in one language, in a stable order.
+
+        Catalan falls back to the English row of the same id when the topic has
+        no Catalan problems, which is how the rest of the page handles a missing
+        translation.
+        """
         pool = [p for _k, p, _v in self.rows
-                if p.get("level") == level and p.get("language") == language]
+                if p.get("language") == language and self.topic_of(p) == topic]
+        if not pool:
+            pool = [p for _k, p, _v in self.rows if self.topic_of(p) == topic]
+        pool.sort(key=lambda p: (int(p.get("level", 0)), p.get("id") or ""))
+        return pool
+
+    def first_problem(self, level=1, language="eng", seed=None, topic=None):
+        def wanted(pool):
+            return [p for p in pool if self.topic_of(p) == topic] if topic else pool
+
+        pool = wanted([p for _k, p, _v in self.rows
+                       if p.get("level") == level and p.get("language") == language])
         if not pool:
             # Keep the page's language before the page's level: a Catalan
             # student would rather see another Catalan problem than an English
             # one at exactly the level asked for.
-            pool = [p for _k, p, _v in self.rows if p.get("language") == language]
+            pool = wanted([p for _k, p, _v in self.rows if p.get("language") == language])
         if not pool:
-            pool = [p for _k, p, _v in self.rows if p.get("level") == level]
+            pool = wanted([p for _k, p, _v in self.rows if p.get("level") == level])
         if not pool:
-            pool = [p for _k, p, _v in self.rows]
+            pool = wanted([p for _k, p, _v in self.rows])
+        if not pool:
+            return None
         # The official run uses SEED; the tutor wants a different topic per
         # session, otherwise strict same-topic practice always starts geometry.
         (random.Random(seed) if seed is not None else random.Random()).shuffle(pool)
@@ -911,12 +954,22 @@ class Session:
         self.pending = None
         self.last = None
 
-    def start(self, level=None, language=None):
+    def start(self, level=None, language=None, reset_profile=False, topic=None):
         self.level = int(self.level if level is None else level)
         self.language = language or self.language
         # The page's language, not the problem's: if the index has no Catalan
         # problems, the interface still stays Catalan and says so by the text.
         self.ui_language = language or self.ui_language
+        # Practising one topic: the picker in the page. The pool is fixed for
+        # the session, so every next problem stays in the topic chosen.
+        self.topic = topic or None
+        self.topic_pool = self.tutor.topic_pool(topic, self.ui_language) if topic else []
+        # "Practise again" starts from zero: the counters the page shows under
+        # "What you have practised" are cleared with the session. Opening the
+        # server, or changing language, leaves the stored profile alone.
+        if reset_profile and self.tutor.profile:
+            self.tutor.profile.reset()
+            self.profile_summary = self.tutor.profile.summary()
         self._clear()
         self.seen = []
         self.counts = {"tries": 0, "right": 0}
@@ -924,12 +977,19 @@ class Session:
         # adaptive difficulty and the end-of-session report.
         self.history = []
         self.points = 0.0
+        # A run of clean answers: counted per problem, reset by a wrong option or
+        # by a reveal. The page draws it as a flame; the milestones encourage.
+        self.streak = 0
+        self.best_streak = 0
+        self.streak_milestone = None
+        self.streak_events = 0
         self.finished = False
         self.report = None
         self.problem_index = 0
         self.problem_started = None
         self.session_started = time.time()
-        self.problem = self.tutor.first_problem(level=self.level, language=self.ui_language)
+        self.problem = self.tutor.first_problem(level=self.level, language=self.ui_language,
+                                                topic=self.topic)
         self._begin_problem()
         return self.state()
 
@@ -970,6 +1030,12 @@ class Session:
             "next_ready": (bool(self.result and self.result["correct"]) or self.revealed)
             and self.pending is not None and not self.finished,
             "progress": dict(self.counts),
+            "topics": self.tutor.topic_counts(self.ui_language),
+            "topic_filter": self.topic,
+            "streak": self.streak,
+            "best_streak": self.best_streak,
+            "streak_milestone": self.streak_milestone,
+            "streak_event": self.streak_events,
             "profile": self.profile_summary,
             "finished": self.finished,
             "hint_cooldown": float(CONFIG.get("HINT_COOLDOWN_SECONDS") or 0),
@@ -998,8 +1064,46 @@ class Session:
             return 0
         return -1
 
+    def _topic_next(self):
+        """The next unseen problem of the chosen topic, at this level first."""
+        if not self.topic_pool:
+            return None
+        unseen = [p for p in self.topic_pool if p.get("id") not in self.seen]
+        if not unseen:
+            unseen = list(self.topic_pool)     # a topic can run out; start again
+        same = [p for p in unseen if int(p.get("level", 0)) == self.level]
+        chosen = (same or unseen)[0]
+        return {"problem": self.tutor.public(chosen, self.ui_language),
+                "target_level": int(chosen.get("level", 0)),
+                "topic": self.topic,
+                "reason": "same topic, as you asked",
+                "seconds": 0.0}
+
+    def _update_streak(self, correct, first_try):
+        """A clean answer extends the run; a wrong option ends it.
+
+        A problem solved after a wrong guess does not extend it: the flame is
+        about getting it right first time. Asking for the solution resets it in
+        reveal(), and a new session starts the run again at zero.
+        """
+        self.streak_milestone = None
+        if not correct:
+            self.streak = 0
+            return
+        if not first_try:
+            return
+        self.streak += 1
+        self.best_streak = max(self.best_streak, self.streak)
+        if self.streak in STREAK_MILESTONES:
+            self.streak_milestone = self.streak
+            self.streak_events += 1
+
     def _pick_next(self, problem, correct):
         """The adaptive next problem, or a same-level one if embeddings are down."""
+        if self.topic:
+            chosen = self._topic_next()
+            if chosen:
+                return chosen
         try:
             return self.tutor.next_problem(problem, correct, seen_ids=self.seen,
                                            prefer_language=self.ui_language,
@@ -1034,9 +1138,11 @@ class Session:
         self.answered = True
         self.chosen = letter
         self.result = result
+        first_try = not self.attempts
         self.attempts.append({"choice": letter, "correct": result["correct"]})
         self.counts["tries"] += 1
         self.counts["right"] += int(result["correct"])
+        self._update_streak(result["correct"], first_try)
         # A private score, never shown: a right answer is worth 10, a hint costs
         # 1, and a failed attempt already cost 3 when it happened.
         points = max(0.0, 10.0 - 1.0 * len(self.hints)) if result["correct"] else -3.0
@@ -1100,6 +1206,9 @@ class Session:
         self.solution = solution["text"]
         self.revealed = True
         self.revealed_label = self.problem.get("label")
+        # The solution is not a clean answer, so the run stops here.
+        self.streak = 0
+        self.streak_milestone = None
         if not self.answered:
             # Asking for the solution is not a wrong answer: it is not counted
             # against the student in the profile, only in the session.

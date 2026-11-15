@@ -4,7 +4,7 @@ import math
 from .config import CONFIG
 from .client import post
 
-URL = f"http://127.0.0.1:{CONFIG['EMBED_PORT']}/v1/embeddings"
+URL = f"http://{CONFIG.get('MODEL_HOST', '127.0.0.1')}:{CONFIG['EMBED_PORT']}/v1/embeddings"
 # About 3.5 characters per token keeps a text inside the 512-token context
 MAX_CHARS = 1400
 
