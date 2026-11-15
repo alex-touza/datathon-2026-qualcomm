@@ -11,7 +11,7 @@ Offline math copilot for the Arduino UNO Q (4 GB, aarch64) built on M3Kang.
 - Answering code runs **on the board**. The laptop only prepares data (and may run a local replica for development).
 - Board runtime code uses the Python **standard library only**. There is no pip on the board.
 - Never commit data or models: `data/`, `data/images/`, `data/index.db`, `*.gguf`. M3Kang is research-only.
-- Never commit secrets. `opencode.json` is local and gitignored; a provider key was committed and pushed earlier — rotate it and clean history before publishing.
+- Never commit secrets. `opencode.json` is local and gitignored. The old claim that a provider key reached the history was checked on 2026-11-15 across every blob and ref: the `apiKey` in every committed `opencode.json` is empty, and no key pattern appears anywhere. Re-run the scan before publishing anyway, since history can change.
 
 ## Where things run
 
