@@ -122,13 +122,13 @@ You should see it listed in App Lab, and the page at
 `http://$(hostname -I | awk '{print $1}'):7000`. The LED matrix shows the level
 digit when a problem appears, and a tick or a cross when you answer.
 
-**The exam predictor is a different model.** `predict.py` defaults to a local
-DeepSeek-R1-Distill-Qwen-1.5B, not the tutor's 0.8B. Put the GGUF in `~/models`,
-start it with `bash board/07_start_deepseek.sh`, and check
-`curl -fsS http://127.0.0.1:18738/health`. Without that server `predict.py`
-answers `D` for every problem with `status=error`. The full setup, including the
-optional Tesseract OCR, is in [docs/exam-deepseek.md](docs/exam-deepseek.md);
-`predict.py --solver baseline` runs the older 0.8B path instead.
+**A second predictor is opt-in.** `predict.py` uses the tutor's 0.8B by
+default. `--solver deepseek` switches to a local DeepSeek-R1-Distill-Qwen-1.5B:
+put the GGUF in `~/models`, start it with `bash board/07_start_deepseek.sh`, and
+check `curl -fsS http://127.0.0.1:18738/health`. Without that server the opt-in
+path answers `D` for every problem with `status=error`. The full setup,
+including the optional Tesseract OCR, is in
+[docs/exam-deepseek.md](docs/exam-deepseek.md).
 
 The App Lab container mounts **only the app folder**, so `06_install_app.sh`
 copies `copilot/`, `config.env`, `data/index.db` and `data/images` next to the
@@ -211,6 +211,14 @@ older Qwen runs, the **Qwen2.5 3B with options** reached 28.3% (McNemar
 p = 0.08); it timed out on 6/10 board problems, with a 57.1 s median. A
 3B-plus-`D` hybrid reached 27.4% overall (p = 0.14).
 
+**A second scorer is available but not the default.** `--solver deepseek`
+switches `predict.py` and `eval.py` to a locally served
+**DeepSeek-R1-Distill-Qwen-1.5B IQ3_M** (see
+[the offline exam setup](docs/exam-deepseek.md)), with runtime OCR and a 57 s
+wall deadline. It has **no board measurement yet**, so it is not in the table
+above and the default stays at the Qwen3.5 0.8B baseline. Quote the table; run
+`--solver deepseek` when you want to measure the other model.
+
 **Teaching layer cost.** The precomputed path was measured at **0.0 s** (a
 SQLite read). Rungs 1–2 are a local embedding search plus keyword matching,
 which is well under a second on the laptop and bounded by the same search on the
@@ -219,8 +227,8 @@ on the board** from its measured decode speed of about 6 tokens per second. A
 full board measurement with `tools/tutor_measure.py` is still pending, and the
 numbers above are marked accordingly.
 
-Precomputed coverage after the current batch: **419 verified rows, 224 problems
-(15.3% of train), 195 of them in both English and Catalan**. Solution
+Precomputed coverage after the current batch: **437 verified rows, 231 problems,
+206 of them in both English and Catalan**. Solution
 generation accepted **94 of 100 rows** at **$0.0075 per row** in the last
 measured batch.
 

@@ -3,6 +3,11 @@
 
     python3 predict.py --input problems.jsonl --output predictions.csv
     python3 predict.py --input problems.jsonl --output predictions.csv --rag 1
+    python3 predict.py --input problems.jsonl --output predictions.csv --solver deepseek
+
+The default solver is the Qwen3.5 0.8B baseline, which is the fastest and the only
+one with a board measurement. --solver deepseek uses the local DeepSeek-R1
+distill instead; see docs/exam-deepseek.md.
 
 Input: one JSON object per line with at least "id" and "text", plus
 "options" ({"A": ..., "E": ...}) and "language" when available.
@@ -26,10 +31,11 @@ def main():
     p.add_argument("--alpha", type=float, default=None,
                    help="override CALIBRATION_ALPHA (0 = no letter-bias correction)")
     p.add_argument("--index", default="data/index.db")
-    p.add_argument("--solver", choices=("deepseek", "baseline"),
-                   help="DeepSeek by default; --rag or --alpha selects the legacy baseline")
+    p.add_argument("--solver", choices=("baseline", "deepseek"), default="baseline",
+                   help="baseline (Qwen3.5 0.8B, the measured default) or deepseek "
+                        "(the local DeepSeek distill, opt-in until it has a board run)")
     args = p.parse_args()
-    solver = args.solver or ("baseline" if args.rag or args.alpha is not None else "deepseek")
+    solver = args.solver
     if solver == "deepseek" and (args.rag or args.alpha is not None):
         p.error("--rag and --alpha require --solver baseline")
 

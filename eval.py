@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Measure accuracy and latency on the board, the way the official run does.
 
-    python3 eval.py --limit 50                    # DeepSeek on 50 validation problems
+    python3 eval.py --limit 50                    # baseline on 50 validation problems
     python3 eval.py --limit 50 --rag 1 --name rag1
     python3 eval.py --languages cat --limit 100
+    python3 eval.py --limit 50 --solver deepseek  # the opt-in DeepSeek distill
 
 Every run writes per-problem results to results/ and adds one line to
 results/ablations.csv, so you can build your ablation table as you go.
@@ -46,10 +47,11 @@ def main():
                    help="override CALIBRATION_ALPHA for this run (0 = no correction)")
     p.add_argument("--index", default="data/index.db")
     p.add_argument("--name", default="", help="a label for this experiment in ablations.csv")
-    p.add_argument("--solver", choices=("deepseek", "baseline"),
-                   help="DeepSeek by default; --rag or --alpha selects the legacy baseline")
+    p.add_argument("--solver", choices=("baseline", "deepseek"), default="baseline",
+                   help="baseline (Qwen3.5 0.8B, the measured default) or deepseek "
+                        "(the local DeepSeek distill, opt-in until it has a board run)")
     args = p.parse_args()
-    solver = args.solver or ("baseline" if args.rag or args.alpha is not None else "deepseek")
+    solver = args.solver
     if solver == "deepseek" and (args.rag or args.alpha is not None):
         p.error("--rag and --alpha require --solver baseline")
 

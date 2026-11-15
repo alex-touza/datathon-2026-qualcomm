@@ -1,8 +1,9 @@
 # Offline exam predictor on Arduino UNO Q
 
-`predict.py` and `eval.py` default to **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M**,
-without LoRA or RAG. Both call the same scorer. The tutor keeps using the
-existing 0.8B service. Use `--solver baseline` to reproduce the old benchmark.
+`predict.py` and `eval.py` keep the **Qwen3.5 0.8B baseline** as their default,
+because it is the only model with a board measurement. Passing
+`--solver deepseek` switches both to **DeepSeek-R1-Distill-Qwen-1.5B IQ3_M**,
+without LoRA or RAG. The tutor keeps using the existing 0.8B service either way.
 
 Before the offline run, copy the already benchmarked GGUF to
 `~/models/deepseek-r1-distill-yq-1.5b-iq3_m.gguf` on the board. The original
@@ -24,8 +25,8 @@ Then, in a second terminal on the board:
 
 ```bash
 curl -fsS http://127.0.0.1:18738/health
-python3 predict.py --input data/demo/train.jsonl --output results/demo.csv
-python3 eval.py --input data/demo/train.jsonl --limit 0 --name demo-deepseek
+python3 predict.py --input data/demo/train.jsonl --output results/demo.csv --solver deepseek
+python3 eval.py --input data/demo/train.jsonl --limit 0 --name demo-deepseek --solver deepseek
 ```
 
 Prepare the practice data on the laptop, using the Parquet from the Discord ZIP:

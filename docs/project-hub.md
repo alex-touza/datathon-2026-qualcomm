@@ -128,7 +128,7 @@ same model scores **20.0%**, at 9.4 s mean and 15.2 s worst.
 | Qwen2.5-Math 1.5B | 50 | 16.0% | yes, worse |
 | Qwen2.5 3B | 562 | 24.6% | **no: 6 of 10 timeouts, 57 s median** |
 | Qwen2.5 3B, options only | 339 | 28.3% (p = 0.08) | no |
-| DeepSeek-R1-Distill-Qwen-1.5B (the new exam default) | — | not measured on the board yet | unknown |
+| DeepSeek-R1-Distill-Qwen-1.5B (opt-in, `--solver deepseek`) | — | not measured on the board yet | unknown |
 
 Error analysis over the full run:
 
